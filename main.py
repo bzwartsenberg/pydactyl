@@ -2,9 +2,11 @@ import argparse
 from solid_update import Cube, Cylinder, Sphere
 from solid_update import Union, Difference, Intersection, Hull
 from solid_update import Translate, Mirror, Scale, Rotate
+from solid_update import rotation_matrix
 from solid import scad_render_to_file
 import sys
 import numpy as np
+from collections import defaultdict
 
 # def cube(x, y=None, z=None):
 #     if y is None:
@@ -16,18 +18,30 @@ def rotate_around_origin(shape, origin, angle, axis):
 
     return shape
 
+
 class Keyboard():
 
     def __init__(self, args):
 
         self.args = args
 
+        # TODO: add to arguments
+        self.column_offsets = defaultdict(lambda: np.zeros(3))
+        self.column_offsets[2] = np.array([0., 2.82, -4.5])
+        self.column_offsets[4] = np.array([0., -12, 5.64])
+        self.column_offsets[5] = np.array([0., -12, 5.64])
+        self.tenting_angle = np.pi / 12 * 180. / np.pi
+        self.keyboard_z_offset = 9.
+        self.thumb_offsets = np.array([6., -3., 7.])
+        self.center_col = 2  #TODO: mark params
+        self.center_row = self.args.nrows - 3 # TODO: make params
+
+
+
     def single_keyhole(self):
 
-        keyhole = Cube(10)
-
         # some shortcuts
-        kr = 1.5 #TODO make parameter
+        kr = self.args.key_hole_rim_width #key hole rim width
         kh = self.args.keyswitch_height
         kw = self.args.keyswitch_width
         pt = self.args.plate_thickness
@@ -70,16 +84,94 @@ class Keyboard():
         return Cube([self.args.keyswitch_width + 2 * kr, self.args.keyswitch_height + 2 * kr, 50.], center=True)
 
     def transform_switch(self, shape, row, col):
-        cap_top_height = self.args.plate_thickness + self.args.key_height
-        mh = self.args.keyswitch_height + 3.0
+        """Key placement function
+
+        Places shape according to the internal key column dictionary, with the cap tops on a torus
+        Note:
+        Need (these operations are applied in order):
+          - minor radius of the torus, row angle spacing, and row offset angle
+          - major radius of the torus, column angle
+          - rotation of the torus around the z axis  (always 0 for dactyl)
+          - origin of the torus  (column-offset for dactyl)
+          - overal tenting angle and z offset
+
+        """
+        cap_top_height = self.args.plate_thickness + self.args.key_height  #this is the distance from the bottom of the plate, to top of key
+        #
+        # "mount-height" in dactyl, this is the spacing between keysthat is used to determine the radius of rows and colums,
+        # together with the angles alpha and beta, by imposing that every key be on a circle segment with a fixed angle,
+        # of vertical size mh = 2 * r * sin(angle / 2), with r the radius that is used to place the keys, and angle the fixed angle
+        mh = self.args.keyswitch_height + 2 * self.args.key_hole_rim_width
 
         rr = (self.args.extra_height + mh) / 2 / np.sin(self.args.alpha * np.pi / 180 / 2) + cap_top_height
         cr = (self.args.extra_height + mh) / 2 / np.sin(self.args.beta * np.pi / 180 / 2) + cap_top_height
 
-        shape = rotate_around_origin(shape, [0., 0., rr], row * self.args.alpha, [1., 0., 0.])
-        shape = rotate_around_origin(shape, [0., 0., cr], col * self.args.beta, [0., 1., 0.])
+        #rotate around x for row offset:
+        shape = rotate_around_origin(shape, [0., 0., rr], (self.center_row - row) * self.args.alpha, [1., 0., 0.])
+
+        #rotate around y for column offset
+        shape = rotate_around_origin(shape, [0., 0., cr], (self.center_col - col) * self.args.beta, [0., 1., 0.])
+
+        #translation per column (origin of torus)
+        shape = Translate(self.column_offsets[col])(shape)
+
+        # tenting angle
+        shape = rotate_around_origin(shape, [0., 0., 0.], self.tenting_angle, [0., 1., 0.])
+
+        #z offset:
+        shape = Translate(np.array([0., 0., self.keyboard_z_offset]))(shape)
 
         return shape
+
+    def get_thumb_origin(self):
+        #TODO: use the interface I made for this
+        # position at col 1, and lastrow
+        position = np.array([-4.18483045012826, -33.155898546096395, 24.16276298368095])
+        return position
+
+
+
+
+    def transform_thumb(self, i, shape):
+        # these should be on circles around some origin
+        # give a normal vector, and rotate around it,
+        # Then take an orthobgonal vector, and rotate around that too, but with opposite curvature
+        # This should create a saddle point
+
+        thumb_origin = self.get_thumb_origin()
+
+        if i == 0:
+            shape = rotate_around_origin(shape, [0., 0., 0.], 14., [1., 0., 0.])
+            shape = rotate_around_origin(shape, [0., 0., 0.], -15., [0., 1., 0.])
+            shape = rotate_around_origin(shape, [0., 0., 0.], 10., [0., 0., 1.])
+            shape = Translate(thumb_origin)(shape)
+            shape = Translate(np.array([-15., -10., 5.]))(shape)
+        elif i == 1:
+            shape = rotate_around_origin(shape, [0., 0., 0.], 10., [1., 0., 0.])
+            shape = rotate_around_origin(shape, [0., 0., 0.], -23., [0., 1., 0.])
+            shape = rotate_around_origin(shape, [0., 0., 0.], 25., [0., 0., 1.])
+            shape = Translate(thumb_origin)(shape)
+            shape = Translate(np.array([-35., -16., -2.]))(shape)
+        elif i == 2:
+            shape = rotate_around_origin(shape, [0., 0., 0.], 10., [1., 0., 0.])
+            shape = rotate_around_origin(shape, [0., 0., 0.], -23., [0., 1., 0.])
+            shape = rotate_around_origin(shape, [0., 0., 0.], 25., [0., 0., 1.])
+            shape = Translate(thumb_origin)(shape)
+            shape = Translate(np.array([-23., -34., -6.]))(shape)
+        elif i == 3:
+            shape = rotate_around_origin(shape, [0., 0., 0.], 6., [1., 0., 0.])
+            shape = rotate_around_origin(shape, [0., 0., 0.], -34., [0., 1., 0.])
+            shape = rotate_around_origin(shape, [0., 0., 0.], 35., [0., 0., 1.])
+            shape = Translate(thumb_origin)(shape)
+            shape = Translate(np.array([-39., -43., -16.]))(shape)
+        elif i == 4:
+            shape = rotate_around_origin(shape, [0., 0., 0.], 6., [1., 0., 0.])
+            shape = rotate_around_origin(shape, [0., 0., 0.], -32., [0., 1., 0.])
+            shape = rotate_around_origin(shape, [0., 0., 0.], 35., [0., 0., 1.])
+            shape = Translate(thumb_origin)(shape)
+            shape = Translate(np.array([-51., -25., -11.5]))(shape)
+        return shape
+
 
     def get_spherical_shell(self):
         cap_top_height = self.args.plate_thickness + self.args.key_height
@@ -101,13 +193,19 @@ class Keyboard():
         shell = self.get_spherical_shell()
 
         key_holes = []
-        for i in range(-2, self.args.nrows-2):
-            for j in range(-2, self.args.ncols-2):
+        for i in range(self.args.nrows):
+            for j in range(self.args.ncols):
+                if i == self.args.nrows - 1:
+                    if not (j == 2 or j == 3):
+                        print(i, j)
+                        continue
                 key_holes.append(self.transform_switch(self.single_keyhole(), i, j))
 
                 shell = shell - self.transform_switch(self.switch_cutout(), i, j)
+        for i in range(5):
+            key_holes.append(self.transform_thumb(i, self.single_keyhole()))
 
-        return sum(key_holes)
+        return sum(key_holes) 
 
 
     def to_scad(self, model=None, fname=None):
@@ -135,7 +233,9 @@ class Keyboard():
                                help='Thickness of side nubs')
         parser.add_argument('--retention-tab-thickness', default=1.5, type=float,
                                help='Thickness of retention tabs')
-        parser.add_argument('--create-side-nubs', default=1, type=int,
+        parser.add_argument('--key-hole-rim-width', default=1.5, type=float,
+                               help='Thickness of the rim around the key-holes')
+        parser.add_argument('--create-side-nubs', default=0, type=int,
                                help='Create side nubs for the key holes')
 
         parser.add_argument('--alpha', default=10, type=float,
@@ -150,9 +250,11 @@ class Keyboard():
 
         parser.add_argument('--nrows', default=4, type=int,
                                help='Create side nubs for the key holes')
-        parser.add_argument('--ncols', default=4, type=int,
+        parser.add_argument('--ncols', default=5, type=int,
                                help='Create side nubs for the key holes')
 
+        parser.add_argument('--column-0-parameters', default=[], nargs='+', type=int,
+                                help='Minor radius, major radius, minor angle offset, major angle offset,')
 
 parser = argparse.ArgumentParser()
 
