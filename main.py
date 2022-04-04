@@ -26,16 +26,29 @@ class Keyboard():
         self.args = args
 
         # TODO: add to arguments
-        self.column_offsets = defaultdict(lambda: np.zeros(3))
-        self.column_offsets[2] = np.array([0., 2.82, -4.5])
-        self.column_offsets[4] = np.array([0., -12, 5.64])
-        self.column_offsets[5] = np.array([0., -12, 5.64])
         self.tenting_angle = np.pi / 12 * 180. / np.pi
         self.keyboard_z_offset = 9.
         self.thumb_offsets = np.array([6., -3., 7.])
         self.center_col = 2  #TODO: mark params
         self.center_row = self.args.nrows - 3 # TODO: make params
 
+        mh = self.args.keyswitch_height + 2 * self.args.key_hole_rim_width
+        cr = (self.args.extra_height + mh) / 2 / np.sin(self.args.beta * np.pi / 180 / 2)
+        rr = (self.args.extra_height + mh) / 2 / np.sin(self.args.alpha * np.pi / 180 / 2)
+        self.major_radii = {i : cr for i in range(self.args.ncols)} #radius of column rotation
+        self.major_angle = {i : (self.center_col - i) * self.args.beta for i in range(self.args.ncols)} #offset angle
+
+        self.minor_radii = {i : rr for i in range(self.args.ncols)}
+        self.minor_angle_offset = {i : self.args.alpha * self.center_row for i in range(self.args.ncols)}
+        self.minor_angle_delta = {i : -self.args.alpha for i in range(self.args.ncols)}
+
+        self.z_rotation_angle = {i : 0.0 for i in range(self.args.ncols)}
+        self.z_rotation_angle[4] = -5.
+
+        self.column_offsets = defaultdict(lambda: np.zeros(3))
+        self.column_offsets[2] = np.array([0., 2.82, -4.5])
+        self.column_offsets[4] = np.array([5., -8, 5.64])
+        self.column_offsets[5] = np.array([0., -12, 5.64])
 
 
     def single_keyhole(self):
@@ -83,7 +96,45 @@ class Keyboard():
         kr = 1.5 # TODO: merge with other parameter
         return Cube([self.args.keyswitch_width + 2 * kr, self.args.keyswitch_height + 2 * kr, 50.], center=True)
 
+
     def transform_switch(self, shape, row, col):
+        """Key placement function
+
+        Places shape according to the internal key column dictionary, with the CAP TOPS on a torus, the holes will follow larger radii
+        Note:
+        Need (these operations are applied in order):
+          - minor radius of the torus, row angle spacing, and row offset angle
+          - major radius of the torus, column angle
+          - rotation of the torus around the z axis  (always 0 for dactyl)
+          - origin of the torus  (column-offset for dactyl)
+          - overal tenting angle and z offset
+
+        """
+        cap_top_height = self.args.plate_thickness + self.args.key_height  #this is the distance from the bottom of the plate, to top of key
+        total_rr = self.minor_radii[col] + cap_top_height
+        total_cr = self.major_radii[col] + cap_top_height
+
+        #rotate around x for row offset:
+        row_angle = self.minor_angle_offset[col] + self.minor_angle_delta[col] * row
+        shape = rotate_around_origin(shape, [0., 0., total_rr], row_angle, [1., 0., 0.])
+
+        #rotate around y for column offset
+        shape = rotate_around_origin(shape, [0., 0., total_cr], self.major_angle[col], [0., 1., 0.])
+
+        shape = rotate_around_origin(shape, [0., 0., 0.], self.z_rotation_angle[col], [0., 0., 1.])
+
+        #translation per column (origin of torus)
+        shape = Translate(self.column_offsets[col])(shape)
+
+        # tenting angle
+        shape = rotate_around_origin(shape, [0., 0., 0.], self.tenting_angle, [0., 1., 0.])
+
+        #z offset:
+        shape = Translate(np.array([0., 0., self.keyboard_z_offset]))(shape)
+
+        return shape
+
+    def dactyl_transform_switch(self, shape, row, col):
         """Key placement function
 
         Places shape according to the internal key column dictionary, with the cap tops on a torus
@@ -128,9 +179,6 @@ class Keyboard():
         # position at col 1, and lastrow
         position = np.array([-4.18483045012826, -33.155898546096395, 24.16276298368095])
         return position
-
-
-
 
     def transform_thumb(self, i, shape):
         # these should be on circles around some origin
@@ -197,13 +245,21 @@ class Keyboard():
             for j in range(self.args.ncols):
                 if i == self.args.nrows - 1:
                     if not (j == 2 or j == 3):
-                        print(i, j)
                         continue
                 key_holes.append(self.transform_switch(self.single_keyhole(), i, j))
 
                 shell = shell - self.transform_switch(self.switch_cutout(), i, j)
         for i in range(5):
             key_holes.append(self.transform_thumb(i, self.single_keyhole()))
+        # for i in range(1): # for debugging
+        #     for j in range(1):
+        #         test = Cube([10., 10., 10.])
+        #         print(f"unrotated points for row {i} col {j} ", test.get_points())
+        #         rot_test = self.transform_switch(test, i, j)
+        #         print(f"unrotated points for row {i} col {j} ", rot_test.get_points())
+        #         key_holes.append(self.transform_switch(self.single_keyhole(), i, j))
+
+        #         shell = shell - self.transform_switch(self.switch_cutout(), i, j)
 
         return sum(key_holes) 
 
@@ -238,9 +294,9 @@ class Keyboard():
         parser.add_argument('--create-side-nubs', default=0, type=int,
                                help='Create side nubs for the key holes')
 
-        parser.add_argument('--alpha', default=10, type=float,
+        parser.add_argument('--alpha', default=15, type=float,
                                help='Row angle')
-        parser.add_argument('--beta', default=10, type=float,
+        parser.add_argument('--beta', default=5, type=float,
                                help='Column angle')
 
         parser.add_argument('--key-height', default=12.7, type=float,
