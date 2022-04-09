@@ -234,7 +234,7 @@ class Keyboard():
         cut_shell = shell * limit_box
 
         return cut_shell
-
+#asdf
 
     def get_model(self):
 
