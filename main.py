@@ -7,17 +7,11 @@ from solid import scad_render_to_file
 import sys
 import numpy as np
 from collections import defaultdict
+from utils import cube_around_points, cube_surrounding_column, get_cylindrical_shell, get_y_wall_between_points, rotate_around_origin, get_spherical_shell, half_cylindrical_shell
 
 # def cube(x, y=None, z=None):
 #     if y is None:
 #
-def rotate_around_origin(shape, origin, angle, axis):
-    shape = Translate([-v for v in origin])(shape)
-    shape = Rotate(angle, axis)(shape)
-    shape = Translate(origin)(shape)
-
-    return shape
-
 
 class Keyboard():
 
@@ -113,6 +107,7 @@ class Keyboard():
           - rotation of the torus around the z axis  (always 0 for dactyl)
           - origin of the torus  (column-offset for dactyl)
           - overal tenting angle and z offset
+        >this does not do the tenting or final z offset
 
         """
         cap_top_height = self.args.plate_thickness + self.args.key_height  #this is the distance from the bottom of the plate, to top of key
@@ -130,46 +125,6 @@ class Keyboard():
 
         #translation per column (origin of torus)
         shape = Translate(self.column_offsets[col])(shape)
-
-        # tenting angle
-        shape = rotate_around_origin(shape, [0., 0., 0.], self.tenting_angle, [0., 1., 0.])
-
-        #z offset:
-        shape = Translate(np.array([0., 0., self.keyboard_z_offset]))(shape)
-
-        return shape
-
-    def dactyl_transform_switch(self, shape, row, col):
-        """Key placement function
-
-        Places shape according to the internal key column dictionary, with the cap tops on a torus
-        Note:
-        Need (these operations are applied in order):
-          - minor radius of the torus, row angle spacing, and row offset angle
-          - major radius of the torus, column angle
-          - rotation of the torus around the z axis  (always 0 for dactyl)
-          - origin of the torus  (column-offset for dactyl)
-        >this does not do the tenting or final z offset
-        """
-        cap_top_height = self.args.plate_thickness + self.args.key_height  #this is the distance from the bottom of the plate, to top of key
-        #
-        # "mount-height" in dactyl, this is the spacing between keysthat is used to determine the radius of rows and colums,
-        # together with the angles alpha and beta, by imposing that every key be on a circle segment with a fixed angle,
-        # of vertical size mh = 2 * r * sin(angle / 2), with r the radius that is used to place the keys, and angle the fixed angle
-        mh = self.args.keyswitch_height + 2 * self.args.key_hole_rim_width
-
-        rr = (self.args.extra_height + mh) / 2 / np.sin(self.args.alpha * np.pi / 180 / 2) + cap_top_height
-        cr = (self.args.extra_height + mh) / 2 / np.sin(self.args.beta * np.pi / 180 / 2) + cap_top_height
-
-        #rotate around x for row offset:
-        shape = rotate_around_origin(shape, [0., 0., rr], (self.center_row - row) * self.args.alpha, [1., 0., 0.])
-
-        #rotate around y for column offset
-        shape = rotate_around_origin(shape, [0., 0., cr], (self.center_col - col) * self.args.beta, [0., 1., 0.])
-
-        #translation per column (origin of torus)
-        shape = Translate(self.column_offsets[col])(shape)
-
         return shape
 
 
@@ -182,7 +137,6 @@ class Keyboard():
 
         #z offset:
         shape = Translate(np.array([0., 0., self.keyboard_z_offset]))(shape)
-
         return shape
 
     def get_thumb_origin(self):
@@ -231,56 +185,130 @@ class Keyboard():
             shape = Translate(np.array([-51., -25., -11.5]))(shape)
         return shape
 
+    def get_vertical_wall_between_shells(self, col0, col1):
+        """get a vertical wall between the shells of col0 and col1"""
 
-    def get_spherical_shell(self):
-        cap_top_height = self.args.plate_thickness + self.args.key_height
-        mh = self.args.keyswitch_height + 3.0
+        cap_top_height = self.args.plate_thickness + self.args.key_height  #this is the distance from the bottom of the plate, to top of key
+        total_rr0 = self.minor_radii[col0] + cap_top_height
+        total_rr1 = self.minor_radii[col1] + cap_top_height
+        outer_cylinder_0 = Rotate(90, [0,1,0])(Cylinder(50., total_rr0 + self.args.plate_thickness, center=True))
+        inner_cylinder_0 = Rotate(90, [0,1,0])(Cylinder(50., total_rr0, center=True))
+        outer_cylinder_1 = Rotate(90, [0,1,0])(Cylinder(50., total_rr1 + self.args.plate_thickness, center=True))
+        inner_cylinder_1 = Rotate(90, [0,1,0])(Cylinder(50., total_rr1, center=True))
+        #TODO: update this with with a rotate_column function
+        #rotate around y for column offset
+        total_cr = self.major_radii[col0] + cap_top_height
+        outer_cylinder_0 = rotate_around_origin(outer_cylinder_0, [0., 0., total_cr], self.major_angle[col0], [0., 1., 0.])
+        outer_cylinder_0 = rotate_around_origin(outer_cylinder_0, [0., 0., 0.], self.z_rotation_angle[col0], [0., 0., 1.])
+        inner_cylinder_0 = rotate_around_origin(inner_cylinder_0, [0., 0., total_cr], self.major_angle[col0], [0., 1., 0.])
+        inner_cylinder_0 = rotate_around_origin(inner_cylinder_0, [0., 0., 0.], self.z_rotation_angle[col0], [0., 0., 1.])
+        #translation per column (origin of torus)
+        outer_cylinder_0 = Translate(self.column_offsets[col0])(outer_cylinder_0)
+        inner_cylinder_0 = Translate(self.column_offsets[col0])(inner_cylinder_0)
 
-        rr = (self.args.extra_height + mh) / 2 / np.sin(self.args.alpha * np.pi / 180 / 2) + cap_top_height
+        total_cr = self.major_radii[col1] + cap_top_height
+        outer_cylinder_1 = rotate_around_origin(outer_cylinder_1, [0., 0., total_cr], self.major_angle[col1], [0., 1., 0.])
+        outer_cylinder_1 = rotate_around_origin(outer_cylinder_1, [0., 0., 0.], self.z_rotation_angle[col1], [0., 0., 1.])
+        inner_cylinder_1 = rotate_around_origin(inner_cylinder_1, [0., 0., total_cr], self.major_angle[col1], [0., 1., 0.])
+        inner_cylinder_1 = rotate_around_origin(inner_cylinder_1, [0., 0., 0.], self.z_rotation_angle[col1], [0., 0., 1.])
+        #translation per column (origin of torus)
+        outer_cylinder_1 = Translate(self.column_offsets[col1])(outer_cylinder_1)
+        inner_cylinder_1 = Translate(self.column_offsets[col1])(inner_cylinder_1)
 
-        shell = Translate([0., 0., rr])(Sphere(rr + 0.2 * self.args.plate_thickness, segments=50) - Sphere(rr - 0.8 * self.args.plate_thickness, segments=50))
+        #TODO: consolidate this as I have already calculated the points
+        point_dummy = Cube([self.args.keyswitch_height + 2 * self.args.key_hole_rim_width, self.args.keyswitch_width + 2 * self.args.key_hole_rim_width, self.args.plate_thickness], center=True)
+        points0 = Union()([self.transform_switch(point_dummy, i, col0) for i in range(self.column_nrows[col0])]).get_points()
+        points1 = Union()([self.transform_switch(point_dummy, i, col1) for i in range(self.column_nrows[col1])]).get_points()
 
-        limit_box = Translate([-70., -10., -20])(Cube([80., 90., 100.]))
+        #TODO: make parameter
+        wall_thickness = 1.0
+        wall0 = get_y_wall_between_points(points0, points1, wall_thickness, margin=[0., 10., 2.])
+        wall1 = get_y_wall_between_points(points0, points1, wall_thickness, margin=[0., 10., 2.])
 
-        cut_shell = shell * limit_box
+        wall0 = Intersection()(outer_cylinder_1, wall0)
 
-        return cut_shell
+        return inner_cylinder_1
+
+
+
+
 
     def get_shell_with_cutouts_for_column(self, col):
+        # get a half cylindrical shell
+        cap_top_height = self.args.plate_thickness + self.args.key_height  #this is the distance from the bottom of the plate, to top of key
+        total_rr = self.minor_radii[col] + cap_top_height
+        shell = Translate([0., 0., total_rr + self.args.plate_thickness])(half_cylindrical_shell(total_rr + self.args.plate_thickness, self.args.plate_thickness, 50.))
+
+        total_cr = self.major_radii[col] + cap_top_height
+
+        #TODO: update this with with a rotate_column function
+        #rotate around y for column offset
+        shell = rotate_around_origin(shell, [0., 0., total_cr], self.major_angle[col], [0., 1., 0.])
+        shell = rotate_around_origin(shell, [0., 0., 0.], self.z_rotation_angle[col], [0., 0., 1.])
+        #translation per column (origin of torus)
+        shell = Translate(self.column_offsets[col])(shell)
+
+        # get points:
+        cutout = Cube([self.args.keyswitch_height + 2 * self.args.key_hole_rim_width, self.args.keyswitch_width + 2 * self.args.key_hole_rim_width, 10.], center=True)
+        point_dummy = Cube([self.args.keyswitch_height + 2 * self.args.key_hole_rim_width, self.args.keyswitch_width + 2 * self.args.key_hole_rim_width, self.args.plate_thickness], center=True)
+        cutouts = []
+        points = []
+        for i in range(self.column_nrows[col]):
+            cutouts.append(self.transform_switch(cutout, i, col))
+            points.append(self.transform_switch(cutout, i, col))
+
+        points = Union()(*points).get_points()
+
+        #TODO: make param
+        boundary_margin = 15.0
+        if col < self.args.ncols - 1:
+            upper_points = Union()([self.transform_switch(point_dummy, i, col + 1) for i in range(self.column_nrows[col + 1])]).get_points()
+        else:
+            upper_points = np.array([[points[:,0].max() + 2 * boundary_margin, points[:,1].mean(), points[:,2].mean()]]) # times 2 because it finds midway
+        if col > 0:
+            lower_points = Union()([self.transform_switch(point_dummy, i, col - 1) for i in range(self.column_nrows[col - 1])]).get_points()
+        else:
+            lower_points = np.array([[points[:,0].min() - 2 * boundary_margin, points[:,1].mean(), points[:,2].mean()]]) # times 2 because it finds midway
+
+        shell = Difference()(shell, *cutouts)
+
+
+        shell = Intersection()(cube_surrounding_column(points, lower_points, upper_points, margin=[0., 50., 50.]), shell)
+
+
+        #TODO: make parameters
+
+        # fit a box: around the cutouts, and difference
+
+
+        #
+        #
 
         ## make a toroidal shell
         ##
         ## make a box that limits that shell that is a boundary with the next column
-        pass
+        return shell
 
 
     def get_model(self):
 
-        shell = self.get_spherical_shell()
-
         key_holes = []
+        shells = []
         for j in range(self.args.ncols):
+            shells.append(self.get_shell_with_cutouts_for_column(j))
+            if j < self.args.ncols - 1:
+                shells.append(self.get_vertical_wall_between_shells(j, j + 1))
             for i in range(self.column_nrows[j]):
                 key_holes.append(self.transform_switch(self.single_keyhole(), i, j))
 
+        key_holes = [self.tent_and_z_offset(shape) for shape in key_holes]
+        shells = [self.tent_and_z_offset(shape) for shape in shells]
 
 
-        shell = shell - self.transform_switch(self.switch_cutout(), i, j)
+        # for i in range(5):
+        #     key_holes.append(self.transform_thumb(i, self.single_keyhole()))
 
-
-        for i in range(5):
-            key_holes.append(self.transform_thumb(i, self.single_keyhole()))
-        # for i in range(1): # for debugging
-        #     for j in range(1):
-        #         test = Cube([10., 10., 10.])
-        #         print(f"unrotated points for row {i} col {j} ", test.get_points())
-        #         rot_test = self.transform_switch(test, i, j)
-        #         print(f"unrotated points for row {i} col {j} ", rot_test.get_points())
-        #         key_holes.append(self.transform_switch(self.single_keyhole(), i, j))
-
-        #         shell = shell - self.transform_switch(self.switch_cutout(), i, j)
-
-        return sum(key_holes) 
+        return sum(key_holes)  + sum(shells)
 
 
     def to_scad(self, model=None, fname=None):
