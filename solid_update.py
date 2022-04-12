@@ -78,7 +78,7 @@ class Rotate(rotate):
     def get_points(self):
         points = []
         for child in self.children:
-            points.append(np.einsum('ji,dj->di', self.rotation_matrix, child.get_points()))
+            points.append(np.einsum('ij,dj->di', self.rotation_matrix, child.get_points()))
         return np.concatenate(points, axis=0)
 
 

@@ -50,6 +50,11 @@ class Keyboard():
         self.column_offsets[4] = np.array([5., -8, 5.64])
         self.column_offsets[5] = np.array([0., -12, 5.64])
 
+        self.column_nrows = defaultdict(lambda: self.args.nrows)
+        self.column_nrows[0] = self.args.nrows - 1
+        self.column_nrows[1] = self.args.nrows - 1
+        self.column_nrows[4] = self.args.nrows - 1
+
 
     def single_keyhole(self):
 
@@ -78,17 +83,17 @@ class Keyboard():
         partial_side_nub_2 = Translate([kr / 2 + kw / 2, 0, st / 2])(Cube([kr, nw, st], center=True))
         side_nub = Translate([0., 0., pt - st])(Hull()(partial_side_nub_1, partial_side_nub_2))
 
-        plate_half = left_wall + top_wall
+        plate_half = Union()(left_wall, top_wall)
 
         if self.args.create_side_nubs:
-            plate_half = plate_half + side_nub
+            plate_half = Union()(plate_half, side_nub)
 
 
         top_nub = Translate([kw / 2, 0, rht / 2])(Cube([5., 5., rht], center=True))
-        top_nub_pair = top_nub + Mirror([0, 1, 0])(Mirror([1, 0, 0])(top_nub))
+        top_nub_pair = Union()(top_nub, Mirror([0, 1, 0])(Mirror([1, 0, 0])(top_nub)))
 
-        plate = plate_half + Mirror([0, 1, 0])(Mirror([1, 0, 0])(plate_half))
-        plate = plate - Rotate(90, [0, 0, 1])(top_nub_pair)
+        plate = Union()(plate_half, Mirror([0, 1, 0])(Mirror([1, 0, 0])(plate_half)))
+        plate = Difference()(plate, Rotate(90, [0, 0, 1])(top_nub_pair))
 
         return plate
 
@@ -144,8 +149,7 @@ class Keyboard():
           - major radius of the torus, column angle
           - rotation of the torus around the z axis  (always 0 for dactyl)
           - origin of the torus  (column-offset for dactyl)
-          - overal tenting angle and z offset
-
+        >this does not do the tenting or final z offset
         """
         cap_top_height = self.args.plate_thickness + self.args.key_height  #this is the distance from the bottom of the plate, to top of key
         #
@@ -166,6 +170,13 @@ class Keyboard():
         #translation per column (origin of torus)
         shape = Translate(self.column_offsets[col])(shape)
 
+        return shape
+
+
+    def tent_and_z_offset(self, shape):
+        """
+          - overal tenting angle and z offset
+        """
         # tenting angle
         shape = rotate_around_origin(shape, [0., 0., 0.], self.tenting_angle, [0., 1., 0.])
 
@@ -234,21 +245,29 @@ class Keyboard():
         cut_shell = shell * limit_box
 
         return cut_shell
-#asdf
+
+    def get_shell_with_cutouts_for_column(self, col):
+
+        ## make a toroidal shell
+        ##
+        ## make a box that limits that shell that is a boundary with the next column
+        pass
+
 
     def get_model(self):
 
         shell = self.get_spherical_shell()
 
         key_holes = []
-        for i in range(self.args.nrows):
-            for j in range(self.args.ncols):
-                if i == self.args.nrows - 1:
-                    if not (j == 2 or j == 3):
-                        continue
+        for j in range(self.args.ncols):
+            for i in range(self.column_nrows[j]):
                 key_holes.append(self.transform_switch(self.single_keyhole(), i, j))
 
-                shell = shell - self.transform_switch(self.switch_cutout(), i, j)
+
+
+        shell = shell - self.transform_switch(self.switch_cutout(), i, j)
+
+
         for i in range(5):
             key_holes.append(self.transform_thumb(i, self.single_keyhole()))
         # for i in range(1): # for debugging
