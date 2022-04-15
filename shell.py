@@ -2,9 +2,9 @@
 from super_solid import Union, Difference, Intersection
 from super_solid import Cube, Cylinder, Sphere
 from super_solid import Translate, Rotate, Scale
-from super_slid import SuperSolid
+from super_solid import SuperSolid
 import numpy as np
-eps = 1
+eps = 1e-1
 
 class Shell():
     def __init__(self, inner, outer, shell):
@@ -168,3 +168,9 @@ class ConicalShell(Shell):
             raise NotImplementedError()
         self.inner = Translate([0., 0., -eps])(Cylinder(h_inner, r1=r_inner, r2=0., center=center, segments=segments))
         self.shell = Difference()(self.outer, self.inner)
+
+def half_cylinder_shell(h, r, thickness):
+    shell = CylinderShell(h, r, thickness, center=True)
+    cube_size = np.array([r, 2 * r, h]) * 1.1
+    cube_offset = np.array([r, 0., 0.]) * 0.55
+    return shell.difference(Cube(cube_size, center=True).translate(cube_offset))

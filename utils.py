@@ -1,15 +1,12 @@
 #!/usr/bin/env ipython
-from solid_update import Cube, Cylinder, Sphere
-from solid_update import Union, Difference, Intersection, Hull
-from solid_update import Translate, Mirror, Scale, Rotate
-from solid_update import rotation_matrix
+from super_solid import Cube, Cylinder, Sphere
+from super_solid import Union, Difference, Intersection, Hull
+from super_solid import Translate, Mirror, Scale, Rotate
+from super_solid import rotation_matrix
 import numpy as np
 
 def rotate_around_origin(shape, origin, angle, axis):
-    shape = Translate([-v for v in origin])(shape)
-    shape = Rotate(angle, axis)(shape)
-    shape = Translate(origin)(shape)
-
+    shape = shape.translate([-v for v in origin]).rotate(angle, axis).translate(origin)
     return shape
 
 def get_spherical_shell(outer_radius, thickness, segments=50):

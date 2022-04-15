@@ -1,6 +1,7 @@
 from solid import union, difference, intersection, hull
 from solid import cube, sphere, cylinder
 from solid import translate, mirror, scale, rotate
+from solid import scad_render_to_file
 import numpy as np
 
 class SuperSolid():
@@ -71,6 +72,9 @@ class SuperSolid():
 
     def __mul__(self, *args):
         return self.intersection(*args)
+
+    def write_scad(self, path):
+        scad_render_to_file(self, path)
 
 
 class Cube(SuperSolid, cube):
