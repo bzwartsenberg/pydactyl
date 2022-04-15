@@ -43,7 +43,7 @@ class Shell():
             new_outer = self.get_outer().union(other)
             new_shell = self.get_shell().union(other)
 
-        return Shell(new_outer, new_inner, new_shell)
+        return Shell(new_inner, new_outer, new_shell)
 
     #TODO: check the difference and intersection cutting for inner/outer
     def difference(self, other, outer=True):
@@ -65,7 +65,7 @@ class Shell():
             new_inner = self.get_inner().difference(other)
             new_outer = self.get_outer().difference(other)
             new_shell = self.get_shell().difference(other)
-        return Shell(new_outer, new_inner, new_shell)
+        return Shell(new_inner, new_outer, new_shell)
 
     def intersection(self, other, outer=True):
         """Create an intersection between self and the other shell
@@ -86,7 +86,7 @@ class Shell():
             new_inner = self.get_inner().intersection(other)
             new_outer = self.get_outer().intersection(other)
             new_shell = self.get_shell().intersection(other)
-        return Shell(new_outer, new_inner, new_shell)
+        return Shell(new_inner, new_outer, new_shell)
 
     def rotate(self, a, v):
         new_inner = self.get_inner().rotate(a, v)
@@ -168,6 +168,80 @@ class ConicalShell(Shell):
             raise NotImplementedError()
         self.inner = Translate([0., 0., -eps])(Cylinder(h_inner, r1=r_inner, r2=0., center=center, segments=segments))
         self.shell = Difference()(self.outer, self.inner)
+
+class PlateShell(Shell):
+    def __init__(self, thickness, extent, buffer=None):
+        """A plate that acts as a shell, the buffer is the perpendicular direction that is used to cut/include other parts
+        The default plate is in the x,y plane
+        Args:
+            thickness: the thickness of the plate
+            extent: the size in x and y
+            buffer: the region to cut in the z direction, this points to positive x
+        """
+        if buffer is None:
+            buffer = extent
+        self.inner = Cube([extent + eps, extent + eps, buffer + eps]).translate([- (extent + eps) / 2., - (extent + eps) / 2., thickness / 2])
+        self.outer = Cube([extent, extent, buffer + thickness]).translate([- extent / 2., - extent / 2, - thickness / 2])
+        self.shell = Difference()(self.outer, self.inner)
+
+class WalledCylinderShells(Shell):
+    def __init__(self, cylinders, xs, thickness, y_min, y_max, z_min, z_max):
+        """Create a shell from cylinder shells, separated at x intervals by a straight wall
+        Args:
+            cylinders: list of shell objects
+            xs: list length n+1 with separating x's
+            thickness: thickness of the walls separating
+            y_min, y_max, z_min, z_max: extent of walls and cut boxes into y and z
+        """
+        inners = []
+        outers = []
+        shells = []
+        for i in range(len(cylinders)):
+            #TODO: offset, epsilon?
+            inner_cut_cube = box_around([xs[i] + thickness / 2, y_min, z_min], [xs[i+1] - thickness / 2, y_max, z_max])
+            # TODO: figure out how to do walls
+            inner = cylinders[i].get_inner().intersection(inner_cut_cube)
+            if i < len(cylinders) - 1:
+                print(i)
+                wall = box_around([xs[i + 1] - thickness / 2, y_min, z_min], [xs[i + 1] + thickness / 2, y_max, z_max])
+                inner = inner.union(wall.intersection(cylinders[i].get_inner(), cylinders[i+1].get_inner()))
+            inners.append(inner)
+
+
+            shell = cylinders[i].get_shell().intersection(inner_cut_cube)
+
+            outer_cut_cube = box_around([xs[i] - thickness / 2, y_min, z_min], [xs[i+1] + thickness / 2, y_max, z_max])
+            # TODO: figure out how to do walls
+            outer = cylinders[i].get_outer().intersection(outer_cut_cube)
+            outers.append(outer)
+
+            if i > 0:
+                wall = box_around([xs[i] - thickness / 2, y_min, z_min], [xs[i] + thickness / 2, y_max, z_max])
+                wall_a = wall.intersection(cylinders[i - 1].get_outer()).difference(cylinders[i].get_inner())
+                wall = box_around([xs[i] - thickness / 2, y_min, z_min], [xs[i] + thickness / 2, y_max, z_max])
+                wall_b = wall.intersection(cylinders[i].get_outer()).difference(cylinders[i - 1].get_inner())
+                shell = shell.union(wall_a, wall_b)
+            shells.append(shell)
+        # end walls:
+        wall = box_around([xs[0] - thickness / 2, y_min, z_min], [xs[0] + thickness / 2, y_max, z_max])
+        wall = wall.intersection(cylinders[0].get_outer())
+        shells.append(wall)
+        wall = box_around([xs[-1] - thickness / 2, y_min, z_min], [xs[-1] + thickness / 2, y_max, z_max])
+        wall = wall.intersection(cylinders[-1].get_outer())
+        shells.append(wall)
+
+        self.inner = Union()(*inners)
+        self.outer = Union()(*outers)
+        self.shell = Union()(*shells)
+
+
+def box_around(mins, maxs):
+    mins = np.array(mins)
+    maxs = np.array(maxs)
+    assert np.all(maxs > mins), 'max has to be bigger than min everywhere'
+    center = (maxs + mins) / 2
+    size = maxs - mins
+    return Cube(size, center=True).translate(center)
 
 def half_cylinder_shell(h, r, thickness):
     shell = CylinderShell(h, r, thickness, center=True)

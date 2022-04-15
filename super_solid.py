@@ -65,13 +65,13 @@ class SuperSolid():
         return Hull()(self, *objects)
 
     def __sum__(self, *args):
-        return self.union(*args)
+        return Union()(self, *args)
 
     def __sub__(self, *args):
-        return self.difference(*args)
+        return Difference()(self, *args)
 
     def __mul__(self, *args):
-        return self.intersection(*args)
+        return Intersection()(self, *args)
 
     def write_scad(self, path):
         scad_render_to_file(self, path)
