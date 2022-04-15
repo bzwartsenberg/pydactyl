@@ -34,8 +34,8 @@ class Cube(cube):
 #TODO: expand to the full definition:
 class Cylinder(cylinder):
 
-    def __init__(self, h, r, center=False, segments=None):
-        super().__init__(h=h, r=r, center=center, segments=segments)
+    def __init__(self, h, r=None, r1=None, r2=None, center=False, segments=None):
+        super().__init__(h=h, r=r, r1=r1, r2=r2, center=center, segments=segments)
         self.points = np.array([
             [0.0, 0.0, 0.0],
             [0.0, 0.0, h],

@@ -73,7 +73,7 @@ class Keyboard():
         nw = 2.75  # nub width
         rotation = Rotate(90, [1, 0, 0])
         translation = Translate([kw /2, 0, 0])
-        partial_side_nub_1 = rotation(translation(Cylinder(1.0, nw, center=True, segments=30)))
+        partial_side_nub_1 = rotation(translation(Cylinder(1.0, r=nw, center=True, segments=30)))
         partial_side_nub_2 = Translate([kr / 2 + kw / 2, 0, st / 2])(Cube([kr, nw, st], center=True))
         side_nub = Translate([0., 0., pt - st])(Hull()(partial_side_nub_1, partial_side_nub_2))
 
@@ -191,10 +191,10 @@ class Keyboard():
         cap_top_height = self.args.plate_thickness + self.args.key_height  #this is the distance from the bottom of the plate, to top of key
         total_rr0 = self.minor_radii[col0] + cap_top_height
         total_rr1 = self.minor_radii[col1] + cap_top_height
-        outer_cylinder_0 = Translate([0., 0., total_rr0 + self.args.plate_thickness])(Rotate(90, [0,1,0])(Cylinder(50., total_rr0 + self.args.plate_thickness, center=True)))
-        inner_cylinder_0 = Translate([0., 0., total_rr0 + self.args.plate_thickness])(Rotate(90, [0,1,0])(Cylinder(50., total_rr0, center=True)))
-        outer_cylinder_1 = Translate([0., 0., total_rr0 + self.args.plate_thickness])(Rotate(90, [0,1,0])(Cylinder(50., total_rr1 + self.args.plate_thickness, center=True)))
-        inner_cylinder_1 = Translate([0., 0., total_rr0 + self.args.plate_thickness])(Rotate(90, [0,1,0])(Cylinder(50., total_rr1, center=True)))
+        outer_cylinder_0 = Translate([0., 0., r=total_rr0 + self.args.plate_thickness])(Rotate(90, [0,1,0])(Cylinder(50., total_rr0 + self.args.plate_thickness, center=True)))
+        inner_cylinder_0 = Translate([0., 0., r=total_rr0 + self.args.plate_thickness])(Rotate(90, [0,1,0])(Cylinder(50., total_rr0, center=True)))
+        outer_cylinder_1 = Translate([0., 0., r=total_rr0 + self.args.plate_thickness])(Rotate(90, [0,1,0])(Cylinder(50., total_rr1 + self.args.plate_thickness, center=True)))
+        inner_cylinder_1 = Translate([0., 0., r=total_rr0 + self.args.plate_thickness])(Rotate(90, [0,1,0])(Cylinder(50., total_rr1, center=True)))
         #TODO: update this with with a rotate_column function
         #rotate around y for column offset
         total_cr = self.major_radii[col0] + cap_top_height
