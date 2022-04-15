@@ -1,8 +1,8 @@
 import argparse
-from solid_update import Cube, Cylinder, Sphere
-from solid_update import Union, Difference, Intersection, Hull
-from solid_update import Translate, Mirror, Scale, Rotate
-from solid_update import rotation_matrix
+from super_solid import Cube, Cylinder, Sphere
+from super_solid import Union, Difference, Intersection, Hull
+from super_solid import Translate, Mirror, Scale, Rotate
+from super_solid import rotation_matrix
 from solid import scad_render_to_file
 import sys
 import numpy as np
