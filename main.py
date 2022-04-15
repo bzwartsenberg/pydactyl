@@ -23,7 +23,8 @@ class Keyboard():
         # TODO: add to arguments
         # self.tenting_angle = np.pi / 12 * 180. / np.pi
         self.tenting_angle = 0 * np.pi / 12 * 180. / np.pi
-        self.keyboard_z_offset = 9.
+        # self.keyboard_z_offset = 9.
+        self.keyboard_z_offset = 0.
         self.thumb_offsets = np.array([6., -3., 7.])
         self.center_col = 2  #TODO: mark params
         self.center_row = self.args.nrows - 3 # TODO: make params
@@ -222,21 +223,35 @@ class Keyboard():
         shell = self.tent_and_z_offset(shell)
         return shell
 
-    def get_x_separations(self):
+    def get_key_separations(self):
+        x_margin = 2.#TODO: make parameter
         x_loc = []
+        extent_min = []
+        extent_max = []
         for j in range(self.args.ncols - 1):
             point_dummy = Cube([self.args.keyswitch_height + 2 * self.args.key_hole_rim_width, self.args.keyswitch_width + 2 * self.args.key_hole_rim_width, self.args.plate_thickness], center=True)
             points0 = Union()([self.transform_column(self.transform_row(point_dummy, i, j), j) for i in range(self.column_nrows[j])]).get_points()
             points1 = Union()([self.transform_column(self.transform_row(point_dummy, i, j + 1), j + 1) for i in range(self.column_nrows[j + 1])]).get_points()
             if j == 0:
-                x_loc.append(points0[:,0].min())
+                x_loc.append(points0[:,0].min() - x_margin)
             x_loc.append((points0[:,0].max() + points1[:,0].min())/2)
             if j == self.args.ncols - 2:
-                x_loc.append(points1[:,0].max())
-        return x_loc
+                x_loc.append(points1[:,0].max() + x_margin)
+            extent_min.append(points0.min(axis=0, keepdims=True))
+            extent_max.append(points0.max(axis=0, keepdims=True))
+            extent_min.append(points1.min(axis=0, keepdims=True))
+            extent_max.append(points1.max(axis=0, keepdims=True))
+        extent_min = np.concatenate(extent_min, axis=0).min(axis=0)
+        extent_max = np.concatenate(extent_max, axis=0).max(axis=0)
+        return x_loc, extent_min, extent_max
 
-    def get_case(self):
-        pass
+
+    def get_case(self, extent_min, extent_max):
+        print(extent_min, extent_max)
+        size = (extent_max - extent_min) + np.array([5., 5., 2.]) + self.args.plate_thickness#TODO: make param
+        offset = (extent_max + extent_min) / 2
+        case = BoxShell(size, thickness=self.args.plate_thickness, close_top=True, close_bottom=False).translate(offset)
+        return case
 
 
     def get_model(self):
@@ -251,13 +266,15 @@ class Keyboard():
                 key_holes.append(self.transform_switch(self.single_keyhole(), i, j))
 
 
-        x_loc = self.get_x_separations()
+        x_loc, extent_min, extent_max = self.get_key_separations()
+        case = self.get_case(extent_min, extent_max)
         shell = WalledCylinderShells(shells, x_loc, thickness=self.args.plate_thickness, y_min=-100, y_max=100., z_min=-100, z_max=100)
+        case = case.difference(shell)
 
         # for i in range(5):
         #     key_holes.append(self.transform_thumb(i, self.single_keyhole()))
 
-        return sum(key_holes)  + shell.get_shell()
+        return sum(key_holes)  + case.get_shell()
 
 
     def to_scad(self, model=None, fname=None):

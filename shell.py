@@ -27,7 +27,7 @@ class Shell():
             other: Shell or SuperSolid
             """
 
-        if type(other) is Shell:
+        if issubclass(type(other), Shell):
             new_outer = Union()(self.get_outer(), other.outer)
             new_inner = Union()(self.get_inner(), other.inner)
 
@@ -51,7 +51,7 @@ class Shell():
         Args:
             other: Shell or SuperSolid
             """
-        if type(other) is Shell:
+        if issubclass(type(other), Shell):
             new_outer = Difference()(self.get_outer(), other.outer)
             new_inner = Difference()(self.get_inner(), other.inner)
             if outer:
@@ -72,7 +72,7 @@ class Shell():
         Args:
             otherl: Shell or SuperSolid object
             """
-        if type(other) is Shell:
+        if issubclass(type(other), Shell):
             new_outer = Intersection()(self.get_outer(), other.outer)
             new_inner = Intersection()(self.get_inner(), other.inner)
             if outer:
@@ -202,7 +202,6 @@ class WalledCylinderShells(Shell):
             # TODO: figure out how to do walls
             inner = cylinders[i].get_inner().intersection(inner_cut_cube)
             if i < len(cylinders) - 1:
-                print(i)
                 wall = box_around([xs[i + 1] - thickness / 2, y_min, z_min], [xs[i + 1] + thickness / 2, y_max, z_max])
                 inner = inner.union(wall.intersection(cylinders[i].get_inner(), cylinders[i+1].get_inner()))
             inners.append(inner)
