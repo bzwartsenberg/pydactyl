@@ -191,10 +191,10 @@ class Keyboard():
         cap_top_height = self.args.plate_thickness + self.args.key_height  #this is the distance from the bottom of the plate, to top of key
         total_rr0 = self.minor_radii[col0] + cap_top_height
         total_rr1 = self.minor_radii[col1] + cap_top_height
-        outer_cylinder_0 = Rotate(90, [0,1,0])(Cylinder(50., total_rr0 + self.args.plate_thickness, center=True))
-        inner_cylinder_0 = Rotate(90, [0,1,0])(Cylinder(50., total_rr0, center=True))
-        outer_cylinder_1 = Rotate(90, [0,1,0])(Cylinder(50., total_rr1 + self.args.plate_thickness, center=True))
-        inner_cylinder_1 = Rotate(90, [0,1,0])(Cylinder(50., total_rr1, center=True))
+        outer_cylinder_0 = Translate([0., 0., total_rr0 + self.args.plate_thickness])(Rotate(90, [0,1,0])(Cylinder(50., total_rr0 + self.args.plate_thickness, center=True)))
+        inner_cylinder_0 = Translate([0., 0., total_rr0 + self.args.plate_thickness])(Rotate(90, [0,1,0])(Cylinder(50., total_rr0, center=True)))
+        outer_cylinder_1 = Translate([0., 0., total_rr0 + self.args.plate_thickness])(Rotate(90, [0,1,0])(Cylinder(50., total_rr1 + self.args.plate_thickness, center=True)))
+        inner_cylinder_1 = Translate([0., 0., total_rr0 + self.args.plate_thickness])(Rotate(90, [0,1,0])(Cylinder(50., total_rr1, center=True)))
         #TODO: update this with with a rotate_column function
         #rotate around y for column offset
         total_cr = self.major_radii[col0] + cap_top_height
@@ -222,12 +222,13 @@ class Keyboard():
 
         #TODO: make parameter
         wall_thickness = 1.0
-        wall0 = get_y_wall_between_points(points0, points1, wall_thickness, margin=[0., 10., 2.])
-        wall1 = get_y_wall_between_points(points0, points1, wall_thickness, margin=[0., 10., 2.])
+        wall0 = get_y_wall_between_points(points0, points1, wall_thickness, margin=[0., 50., 20.])
+        wall1 = get_y_wall_between_points(points0, points1, wall_thickness, margin=[0., 50., 20.])
 
-        wall0 = Intersection()(outer_cylinder_1, wall0)
+        wall0 = Difference()(Intersection()(outer_cylinder_1, wall0), inner_cylinder_0)
+        wall1 = Difference()(Intersection()(outer_cylinder_0, wall1), inner_cylinder_1)
 
-        return inner_cylinder_1
+        return wall0 + wall1
 
 
 
