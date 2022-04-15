@@ -8,6 +8,7 @@ solidpython = "*"
 numpy = "*"
 virtualenv = "*"
 ipython = "*"
+pyyaml = "*"
 
 [dev-packages]
 

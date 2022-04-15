@@ -3,11 +3,80 @@ from solid import cube, sphere, cylinder
 from solid import translate, mirror, scale, rotate
 import numpy as np
 
+class SuperSolid():
+    """Parent class with some useful shortcuts for a more pythonic feel"""
 
-class Cube(cube):
+    def rotate(self, a, v):
+        """apply a rotation
+        Args:
+            a: angle (degrees)
+            v: vector around which to rotate
+        """
+        return Rotate(a, v)(self)
+
+    def translate(self, v):
+        """apply a translation
+        Args:
+            v: vector of the translation
+        """
+        return Translate(v)(self)
+
+    def scale(self, v):
+        """Apply a scaling
+        Args:
+            v: scale parameters
+        """
+        return Scale(v=v)(self)
+
+    def mirror(self, v):
+        """Apply a mirror about a plane through the origin with normal v
+        Args:
+            v: normal vector
+        """
+        return Mirror(v=v)(self)
+
+    def union(self, *objects):
+        """Apply a union with other objects
+        Args:
+            *objects: any objects to uniuon with
+        """
+        return Union()(self, *objects)
+
+    def difference(self, *objects):
+        """Apply a difference with other objects
+        Args:
+            *objects: any objects to difference with
+        """
+        return Difference()(self, *objects)
+
+    def intersection(self, *objects):
+        """Apply an intersection with other objects
+        Args:
+            *objects: any objects to intersection with
+        """
+        return Intersection()(self, *objects)
+
+    def hull(self, *objects):
+        """Apply a hull with other objects
+        Args:
+            *objects: any objects to hull with
+        """
+        return Hull()(self, *objects)
+
+    def __sum__(self, *args):
+        return self.union(*args)
+
+    def __sub__(self, *args):
+        return self.difference(*args)
+
+    def __mul__(self, *args):
+        return self.intersection(*args)
+
+
+class Cube(SuperSolid, cube):
 
     def __init__(self, size, center=False):
-        super().__init__(size, center=center)
+        cube.__init__(self, size, center=center)
         size = np.array(size)
         self.points = np.array([
             [0.0, 0.0, 0.0],
@@ -32,10 +101,10 @@ class Cube(cube):
 
 
 #TODO: expand to the full definition:
-class Cylinder(cylinder):
+class Cylinder(SuperSolid, cylinder):
 
     def __init__(self, h, r=None, r1=None, r2=None, center=False, segments=None):
-        super().__init__(h=h, r=r, r1=r1, r2=r2, center=center, segments=segments)
+        cylinder.__init__(self, h=h, r=r, r1=r1, r2=r2, center=center, segments=segments)
         self.points = np.array([
             [0.0, 0.0, 0.0],
             [0.0, 0.0, h],
@@ -50,11 +119,11 @@ class Cylinder(cylinder):
 
 
 #TODO: expand to full def:
-class Sphere(sphere):
+class Sphere(SuperSolid, sphere):
 
     #TODO: add segments around the perimiters, in "number of segments", as given
     def __init__(self, r, segments=None):
-        super().__init__(r=r, segments=segments)
+        sphere.__init__(self, r=r, segments=segments)
         self.points = np.array([
             [0.0, 0.0, 0.0],
         ])
@@ -63,7 +132,7 @@ class Sphere(sphere):
         return self.points
 
 # TODO: expand functionality to full openscad style:
-class Rotate(rotate):
+class Rotate(SuperSolid, rotate):
 
     def __init__(self, a, v):
         """Generate a rotation
@@ -71,7 +140,7 @@ class Rotate(rotate):
             a: angle (degrees)
             v: vector around which to rotate
         """
-        super().__init__(a=a, v=v)
+        rotate.__init__(self, a=a, v=v)
 
         self.rotation_matrix = rotation_matrix(v, a * np.pi / 180.)
 
@@ -83,14 +152,14 @@ class Rotate(rotate):
 
 
 # TODO: expand functionality to full openscad style:
-class Translate(translate):
+class Translate(SuperSolid, translate):
 
     def __init__(self, v):
         """Generate a translation
         Args:
             v: vector of the translation
         """
-        super().__init__(v=v)
+        translate.__init__(self, v=v)
 
         self.v = np.array(v)
 
@@ -100,14 +169,14 @@ class Translate(translate):
             points.append(child.get_points() + self.v.reshape((1,3)))
         return np.concatenate(points, axis=0)
 
-class Scale(scale):
+class Scale(SuperSolid, scale):
 
     def __init__(self, v):
         """Generate a scaling
         Args:
             v: scale parameters
         """
-        super().__init__(v=v)
+        scale.__init__(self, v=v)
 
         self.v = np.array(v)
 
@@ -117,14 +186,14 @@ class Scale(scale):
             points.append(child.get_points() * self.v.reshape((1,3)))
         return np.concatenate(points, axis=0)
 
-class Mirror(mirror):
+class Mirror(SuperSolid, mirror):
 
     def __init__(self, v):
         """Generate a mirror about a plane through the origin with normal v
         Args:
             v: normal vector
         """
-        super().__init__(v=v)
+        mirror.__init__(self, v=v)
 
         self.v = np.array(v)
         self.v_norm = self.v / np.linalg.norm(self.v)
@@ -139,10 +208,10 @@ class Mirror(mirror):
             points.append(child_points - 2 * projections)
         return np.concatenate(points, axis=0)
 
-class Union(union):
+class Union(SuperSolid, union):
 
     def __init__(self):
-        super().__init__()
+        union.__init__(self)
 
     def get_points(self):
         points = []
@@ -150,10 +219,10 @@ class Union(union):
             points.append(child.get_points())
         return np.concatenate(points, axis=0)
 
-class Intersection(intersection):
+class Intersection(SuperSolid, intersection):
 
     def __init__(self):
-        super().__init__()
+        intersection.__init__(self)
 
     def get_points(self):
         points = []
@@ -161,10 +230,10 @@ class Intersection(intersection):
             points.append(child.get_points())
         return np.concatenate(points, axis=0)
 
-class Difference(difference):
+class Difference(SuperSolid, difference):
 
     def __init__(self):
-        super().__init__()
+        difference.__init__(self)
 
     def get_points(self):
         points = []
@@ -172,10 +241,10 @@ class Difference(difference):
             points.append(child.get_points())
         return np.concatenate(points, axis=0)
 
-class Hull(hull):
+class Hull(SuperSolid, hull):
 
     def __init__(self):
-        super().__init__()
+        hull.__init__(self)
 
     def get_points(self):
         points = []

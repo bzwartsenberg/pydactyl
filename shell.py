@@ -2,6 +2,7 @@
 from super_solid import Union, Difference, Intersection
 from super_solid import Cube, Cylinder, Sphere
 from super_solid import Translate, Rotate, Scale
+from super_slid import SuperSolid
 import numpy as np
 eps = 1
 
@@ -20,79 +21,97 @@ class Shell():
     def get_shell(self):
         return self.shell
 
-    def union(self, other_shell, outer=True):
+    def union(self, other, outer=True):
         """Create a union between self and the other shell
         Args:
-            other_shell: Shell object
+            other: Shell or SuperSolid
             """
-        new_outer = Union()(self.get_outer(), other_shell.outer)
-        new_inner = Union()(self.get_inner(), other_shell.inner)
 
-        if outer:
-            self_cut_shell = Difference()(self.get_shell(), other_shell.get_inner())
-            other_cut_shell = Difference()(other_shell.get_shell(), self.get_outer())
+        if type(other) is Shell:
+            new_outer = Union()(self.get_outer(), other.outer)
+            new_inner = Union()(self.get_inner(), other.inner)
+
+            if outer:
+                self_cut_shell = Difference()(self.get_shell(), other.get_inner())
+                other_cut_shell = Difference()(other.get_shell(), self.get_outer())
+            else:
+                self_cut_shell = Difference()(self.get_shell(), other.get_outer())
+                other_cut_shell = Difference()(other.get_shell(), self.get_inner())
+            new_shell = Union()(self_cut_shell, other_cut_shell)
         else:
-            self_cut_shell = Difference()(self.get_shell(), other_shell.get_outer())
-            other_cut_shell = Difference()(other_shell.get_shell(), self.get_inner())
-        new_shell = Union()(self_cut_shell, other_cut_shell)
+            new_inner = self.get_inner().union(other)
+            new_outer = self.get_outer().union(other)
+            new_shell = self.get_shell().union(other)
 
         return Shell(new_outer, new_inner, new_shell)
 
-    def difference(self, other_shell, outer=True):
+    #TODO: check the difference and intersection cutting for inner/outer
+    def difference(self, other, outer=True):
         """Create a difference between self and the other shell
         Args:
-            other_shell: Shell object
+            other: Shell or SuperSolid
             """
-        new_outer = Difference()(self.get_outer(), other_shell.outer)
-        new_inner = Difference()(self.get_inner(), other_shell.inner)
-        if outer:
-            self_cut_shell = Difference()(self.get_shell(), other_shell.get_outer())
-            other_cut_shell = Intersection()(other_shell.get_shell(), self.get_outer())
+        if type(other) is Shell:
+            new_outer = Difference()(self.get_outer(), other.outer)
+            new_inner = Difference()(self.get_inner(), other.inner)
+            if outer:
+                self_cut_shell = Difference()(self.get_shell(), other.get_outer())
+                other_cut_shell = Intersection()(other.get_shell(), self.get_outer())
+            else:
+                self_cut_shell = Difference()(self.get_shell(), other.get_inner())
+                other_cut_shell = Intersection()(other.get_shell(), self.get_inner())
+            new_shell = Union()(self_cut_shell, other_cut_shell)
         else:
-            self_cut_shell = Difference()(self.get_shell(), other_shell.get_inner())
-            other_cut_shell = Intersection()(other_shell.get_shell(), self.get_inner())
-        new_shell = Union()(self_cut_shell, other_cut_shell)
+            new_inner = self.get_inner().difference(other)
+            new_outer = self.get_outer().difference(other)
+            new_shell = self.get_shell().difference(other)
         return Shell(new_outer, new_inner, new_shell)
 
-    def intersection(self, other_shell, outer=True):
+    def intersection(self, other, outer=True):
         """Create an intersection between self and the other shell
         Args:
-            other_shell: Shell object
+            otherl: Shell or SuperSolid object
             """
-        new_outer = Intersection()(self.get_outer(), other_shell.outer)
-        new_inner = Intersection()(self.get_inner(), other_shell.inner)
-        if outer:
-            self_cut_shell = Intersection()(self.get_shell(), other_shell.get_outer())
-            other_cut_shell = Intersection()(other_shell.get_shell(), self.get_inner())
+        if type(other) is Shell:
+            new_outer = Intersection()(self.get_outer(), other.outer)
+            new_inner = Intersection()(self.get_inner(), other.inner)
+            if outer:
+                self_cut_shell = Intersection()(self.get_shell(), other.get_outer())
+                other_cut_shell = Intersection()(other.get_shell(), self.get_inner())
+            else:
+                self_cut_shell = Intersection()(self.get_shell(), other.get_inner())
+                other_cut_shell = Intersection()(other.get_shell(), self.get_outer())
+            new_shell = Union()(self_cut_shell, other_cut_shell)
         else:
-            self_cut_shell = Intersection()(self.get_shell(), other_shell.get_inner())
-            other_cut_shell = Intersection()(other_shell.get_shell(), self.get_outer())
-        new_shell = Union()(self_cut_shell, other_cut_shell)
+            new_inner = self.get_inner().intersection(other)
+            new_outer = self.get_outer().intersection(other)
+            new_shell = self.get_shell().intersection(other)
         return Shell(new_outer, new_inner, new_shell)
 
     def rotate(self, a, v):
-        new_inner = Rotate(a, v)(self.get_inner())
-        new_outer = Rotate(a, v)(self.get_outer())
-        new_shell = Rotate(a, v)(self.get_shell())
+        new_inner = self.get_inner().rotate(a, v)
+        new_outer = self.get_outer().rotate(a, v)
+        new_shell = self.get_shell().rotate(a, v)
         return Shell(new_inner, new_outer, new_shell)
 
-    def translate(self, s):
-        new_inner = Translate(s)(self.get_inner())
-        new_outer = Translate(s)(self.get_outer())
-        new_shell = Translate(s)(self.get_shell())
+    def translate(self, v):
+        new_inner = self.get_inner().translate(v)
+        new_outer = self.get_outer().translate(v)
+        new_shell = self.get_shell().translate(v)
         return Shell(new_inner, new_outer, new_shell)
 
-    def scale(self, s):
-        new_inner = Scale(s)(self.get_inner())
-        new_outer = Scale(s)(self.get_outer())
-        new_shell = Scale(s)(self.get_shell())
+    def scale(self, v):
+        new_inner = self.get_inner().scale(v)
+        new_outer = self.get_outer().scale(v)
+        new_shell = self.get_shell().scale(v)
         return Shell(new_inner, new_outer, new_shell)
 
-    def subtract(self, other_object):
-        new_inner = Difference()(self.inner, other_object)
-        new_outer = Difference()(self.outer, other_object)
-        new_shell = Difference()(self.shell, other_object)
+    def mirror(self, v):
+        new_inner = self.get_inner().mirror(v)
+        new_outer = self.get_outer().mirror(v)
+        new_shell = self.get_shell().mirror(v)
         return Shell(new_inner, new_outer, new_shell)
+
 
 #TODO: update to only close one end by choice?
 class CylinderShell(Shell):
