@@ -21,10 +21,9 @@ class Keyboard():
         self.args = args
 
         # TODO: add to arguments
-        # self.tenting_angle = np.pi / 12 * 180. / np.pi
-        self.tenting_angle = 0 * np.pi / 12 * 180. / np.pi
-        # self.keyboard_z_offset = 9.
-        self.keyboard_z_offset = 0.
+        self.tenting_angle = np.pi / 12 * 180. / np.pi
+        self.tenting_angle = 0. * np.pi / 12 * 180. / np.pi
+        self.keyboard_z_offset = 9.
         self.thumb_offsets = np.array([6., -3., 7.])
         self.center_col = 2  #TODO: mark params
         self.center_row = self.args.nrows - 3 # TODO: make params
@@ -44,7 +43,7 @@ class Keyboard():
 
         self.column_offsets = defaultdict(lambda: np.zeros(3))
         self.column_offsets[2] = np.array([0., 2.82, -4.5])
-        self.column_offsets[4] = np.array([5., -8, 5.64])
+        self.column_offsets[4] = np.array([5., -12, 5.64])
         self.column_offsets[5] = np.array([0., -12, 5.64])
 
         self.column_nrows = defaultdict(lambda: self.args.nrows)
@@ -100,7 +99,7 @@ class Keyboard():
 
     def switch_cutout(self):
         kr = self.args.key_hole_rim_width
-        return Cube([self.args.keyswitch_width + 2 * kr, self.args.keyswitch_height + 2 * kr, 50.], center=True)
+        return Cube([self.args.keyswitch_width + 2 * kr, self.args.keyswitch_height + 2 * kr, 7.], center=True)
 
     def transform_row(self, shape, row, col):
         """First part of the key placement function,
@@ -247,10 +246,10 @@ class Keyboard():
 
 
     def get_case(self, extent_min, extent_max):
-        print(extent_min, extent_max)
-        size = (extent_max - extent_min) + np.array([5., 5., 2.]) + self.args.plate_thickness#TODO: make param
+        size = (extent_max - extent_min) + np.array([10., 10., 5.]) + self.args.plate_thickness#TODO: make param
         offset = (extent_max + extent_min) / 2
         case = BoxShell(size, thickness=self.args.plate_thickness, close_top=True, close_bottom=False).translate(offset)
+        case = self.tent_and_z_offset(case)
         return case
 
 
@@ -258,23 +257,29 @@ class Keyboard():
 
         key_holes = []
         shells = []
+        cutouts = []
         for j in range(self.args.ncols):
             shells.append(self.get_shell_for_column(j))
             # if j < self.args.ncols - 1:
                 # shells.append(self.get_vertical_wall_between_shells(j, j + 1))
             for i in range(self.column_nrows[j]):
                 key_holes.append(self.transform_switch(self.single_keyhole(), i, j))
+                cutouts.append(self.transform_switch(self.switch_cutout(), i, j))
 
 
         x_loc, extent_min, extent_max = self.get_key_separations()
         case = self.get_case(extent_min, extent_max)
-        shell = WalledCylinderShells(shells, x_loc, thickness=self.args.plate_thickness, y_min=-100, y_max=100., z_min=-100, z_max=100)
+        shell = WalledCylinderShells(shells, x_loc, thickness=0.5 * self.args.plate_thickness, y_min=-100, y_max=100., z_min=-100, z_max=100)
         case = case.difference(shell)
+
+        case = case.get_shell()
+        for cutout in cutouts:
+            case = case.difference(cutout)
 
         # for i in range(5):
         #     key_holes.append(self.transform_thumb(i, self.single_keyhole()))
 
-        return sum(key_holes)  + case.get_shell()
+        return sum(key_holes)  + case
 
 
     def to_scad(self, model=None, fname=None):
@@ -324,18 +329,6 @@ class Keyboard():
 
         parser.add_argument('--column-0-parameters', default=[], nargs='+', type=int,
                                 help='Minor radius, major radius, minor angle offset, major angle offset,')
-
-parser = argparse.ArgumentParser()
-
-Keyboard.add_args(parser)
-
-args = parser.parse_args([])
-
-kb = Keyboard(args)
-
-model = kb.get_model()
-
-kb.to_scad(model=model, fname='things/model.scad')
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
