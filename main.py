@@ -9,51 +9,59 @@ import numpy as np
 from collections import defaultdict
 from utils import cube_around_points, cube_surrounding_column, get_cylindrical_shell, get_y_wall_between_points, rotate_around_origin, get_spherical_shell, half_cylindrical_shell
 from shell import CylinderShell, BoxShell, SphericalShell, ConicalShell, WalledCylinderShells, half_cylinder_shell
+import yaml
+from types import SimpleNamespace
+from pprint import pprint
 
-# def cube(x, y=None, z=None):
-#     if y is None:
-#
 
 class Keyboard():
 
     def __init__(self, args):
 
-        self.args = args
+        self.load_config(args)
+        self.parse_config()
 
-        # TODO: add to arguments
-        self.tenting_angle = np.pi / 12 * 180. / np.pi
-        self.tenting_angle = 0. * np.pi / 12 * 180. / np.pi
-        self.keyboard_z_offset = 9.
-        self.thumb_offsets = np.array([6., -3., 7.])
-        self.center_col = 2  #TODO: mark params
-        self.center_row = self.args.nrows - 3 # TODO: make params
+        # self.args = args
 
-        mh = self.args.keyswitch_height + 2 * self.args.key_hole_rim_width
-        cr = (self.args.extra_height + mh) / 2 / np.sin(self.args.beta * np.pi / 180 / 2)
-        rr = (self.args.extra_height + mh) / 2 / np.sin(self.args.alpha * np.pi / 180 / 2)
-        self.major_radii = {i : cr for i in range(self.args.ncols)} #radius of column rotation
-        self.major_angle = {i : (self.center_col - i) * self.args.beta for i in range(self.args.ncols)} #offset angle
-
-        self.minor_radii = {i : rr for i in range(self.args.ncols)}
-        self.minor_angle_offset = {i : self.args.alpha * self.center_row for i in range(self.args.ncols)}
-        self.minor_angle_delta = {i : -self.args.alpha for i in range(self.args.ncols)}
-
-        self.z_rotation_angle = {i : 0.0 for i in range(self.args.ncols)}
-        self.z_rotation_angle[4] = -5.
-
-        self.column_offsets = defaultdict(lambda: np.zeros(3))
-        self.column_offsets[2] = np.array([0., 2.82, -4.5])
-        self.column_offsets[4] = np.array([5., -12, 5.64])
-        self.column_offsets[5] = np.array([0., -12, 5.64])
-
-        self.column_nrows = defaultdict(lambda: self.args.nrows)
-        self.column_nrows[0] = self.args.nrows - 1
-        self.column_nrows[1] = self.args.nrows - 1
-        self.column_nrows[4] = self.args.nrows - 1
 
         #often used, and shortcuts
         self.cap_top_height = self.args.plate_thickness + self.args.key_height  #this is the distance from the bottom of the plate, to top of key
         self.cth = self.cap_top_height # shortcut
+
+    def load_config(self, args):
+        with open(f'config/{args.config}.yaml', 'r') as f:
+            config = yaml.safe_load(f)
+        print(f'Using {args.config} configuration:')
+        pprint(config)
+        self.args = SimpleNamespace(**config, **args.__dict__)
+
+    def parse_config(self):
+        #TODO: clean up
+        self.thumb_offsets = np.array([6., -3., 7.])
+
+        for i in range(self.args.ncols):
+            if not hasattr(self.args, f'column_{i}'):
+                column_dict = {'angle': i * self.args.beta + self.args.column_angle_offset}
+                column_dict.update(self.args.default_column) # TODO: check if this gives problems with mutable objects like lists?
+                setattr(self.args, f'column_{i}', column_dict)
+
+        # TODO: clean this up, so that it is not necessary anymore
+        self.tenting_angle = self.args.tenting_angle
+        self.keyboard_z_offset = self.args.keyboard_z_offset
+        mh = self.args.keyswitch_height + 2 * self.args.key_hole_rim_width
+        mw = self.args.keyswitch_width + 2 * self.args.key_hole_rim_width
+        cr = (self.args.extra_width + mw) / 2 / np.sin(- self.args.beta * np.pi / 180 / 2)
+        rr = (self.args.extra_height + mh) / 2 / np.sin(- self.args.alpha * np.pi / 180 / 2)
+        self.major_radii = {i : cr for i in range(self.args.ncols)} #radius of column rotation
+        self.major_angle = {i : getattr(self.args, f'column_{i}')['angle'] for i in range(self.args.ncols)} #column angle
+        self.minor_radii = {i : rr for i in range(self.args.ncols)}
+        self.minor_angle_offset = {i : getattr(self.args, f'column_{i}')['row_angle_offset'] for i in range(self.args.ncols)}
+        self.minor_angle_delta = {i : self.args.alpha for i in range(self.args.ncols)}
+        self.z_rotation_angle = {i : getattr(self.args, f'column_{i}')['z_rotation_angle']  for i in range(self.args.ncols)}
+        self.column_offsets = {i : getattr(self.args, f'column_{i}')['column_offset']  for i in range(self.args.ncols)}
+        self.column_nrows = {i : getattr(self.args, f'column_{i}')['nrows']  for i in range(self.args.ncols)}
+
+
 
     #TODO: clean up
     def single_keyhole(self):
@@ -279,7 +287,7 @@ class Keyboard():
         # for i in range(5):
         #     key_holes.append(self.transform_thumb(i, self.single_keyhole()))
 
-        return sum(key_holes)  + case
+        return sum(key_holes)  #+ case
 
 
     def to_scad(self, model=None, fname=None):
@@ -296,39 +304,41 @@ class Keyboard():
     def add_args(parser):
         parser.add_argument('--output-file-name', default="things/model.scad", type=str,
                                help='Output filename')
+        parser.add_argument('--config', default="dactyl", type=str,
+                               help='Name of the yaml configuration')
 
-        parser.add_argument('--keyswitch-width', default=14.2, type=float,
-                               help='width of the keyswitch')
-        parser.add_argument('--keyswitch-height', default=14.2, type=float,
-                               help='height of the keyswitch')
-        parser.add_argument('--plate-thickness', default=2.0, type=float,
-                               help='Thickness of the mounting plate')
-        parser.add_argument('--side-nub-thickness', default=4.0, type=float,
-                               help='Thickness of side nubs')
-        parser.add_argument('--retention-tab-thickness', default=1.5, type=float,
-                               help='Thickness of retention tabs')
-        parser.add_argument('--key-hole-rim-width', default=1.5, type=float,
-                               help='Thickness of the rim around the key-holes')
-        parser.add_argument('--create-side-nubs', default=0, type=int,
-                               help='Create side nubs for the key holes')
+        # parser.add_argument('--keyswitch-width', default=14.2, type=float,
+        #                        help='width of the keyswitch')
+        # parser.add_argument('--keyswitch-height', default=14.2, type=float,
+        #                        help='height of the keyswitch')
+        # parser.add_argument('--plate-thickness', default=2.0, type=float,
+        #                        help='Thickness of the mounting plate')
+        # parser.add_argument('--side-nub-thickness', default=4.0, type=float,
+        #                        help='Thickness of side nubs')
+        # parser.add_argument('--retention-tab-thickness', default=1.5, type=float,
+        #                        help='Thickness of retention tabs')
+        # parser.add_argument('--key-hole-rim-width', default=1.5, type=float,
+        #                        help='Thickness of the rim around the key-holes')
+        # parser.add_argument('--create-side-nubs', default=0, type=int,
+        #                        help='Create side nubs for the key holes')
 
-        parser.add_argument('--alpha', default=15, type=float,
-                               help='Row angle')
-        parser.add_argument('--beta', default=5, type=float,
-                               help='Column angle')
+        # parser.add_argument('--alpha', default=15, type=float,
+        #                        help='Row angle')
+        # parser.add_argument('--beta', default=5, type=float,
+        #                        help='Column angle')
 
-        parser.add_argument('--key-height', default=12.7, type=float,
-                               help='Key height')
-        parser.add_argument('--extra-height', default=1.0, type=float,
-                               help='Extra height for key spacing')
+        # parser.add_argument('--key-height', default=12.7, type=float,
+        #                        help='Key height')
+        # parser.add_argument('--extra-height', default=1.0, type=float,
+        #                        help='Extra height for key spacing')
 
-        parser.add_argument('--nrows', default=4, type=int,
-                               help='Create side nubs for the key holes')
-        parser.add_argument('--ncols', default=5, type=int,
-                               help='Create side nubs for the key holes')
+        # parser.add_argument('--nrows', default=4, type=int,
+        #                        help='Create side nubs for the key holes')
+        # parser.add_argument('--ncols', default=5, type=int,
+        #                        help='Create side nubs for the key holes')
 
-        parser.add_argument('--column-0-parameters', default=[], nargs='+', type=int,
-                                help='Minor radius, major radius, minor angle offset, major angle offset,')
+        # parser.add_argument('--column-0-parameters', default=[], nargs='+', type=int,
+        #                         help='Minor radius, major radius, minor angle offset, major angle offset,')
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -338,6 +348,14 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     kb = Keyboard(args)
+    # print(kb.minor_angle_offset)
+    # print(kb.minor_angle_delta)
+    # print(kb.major_angle)
+    # print(kb.z_rotation_angle)
+    # print(kb.column_offsets)
+    # print(kb.column_nrows)
+    # print(kb.major_radii)
+    # print(kb.minor_radii)
 
     model = kb.get_model()
 
