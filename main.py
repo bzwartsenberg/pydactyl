@@ -7,6 +7,7 @@ from solid import scad_render_to_file
 import sys
 import numpy as np
 from collections import defaultdict
+from thumb_utils import fit_cone_to_points, get_cone, get_points_from_transform
 from utils import cube_around_points, cube_surrounding_column, get_cylindrical_shell, get_hulls, get_y_wall_between_points, rotate_around_origin, get_spherical_shell, half_cylindrical_shell
 from shell import CylinderShell, BoxShell, SphericalShell, ConicalShell, WalledCylinderShells, half_cylinder_shell
 import yaml
@@ -179,7 +180,7 @@ class Keyboard():
         position = np.array([-4.18483045012826, -33.155898546096395, 24.16276298368095])
         return position
 
-    def transform_thumb(self, i, shape):
+    def transform_thumb(self, shape, i):
         # these should be on circles around some origin
         # give a normal vector, and rotate around it,
         # Then take an orthobgonal vector, and rotate around that too, but with opposite curvature
@@ -218,6 +219,13 @@ class Keyboard():
             shape = Translate(thumb_origin)(shape)
             shape = Translate(np.array([-51., -25., -11.5]))(shape)
         return shape
+
+    def get_thumb_case(self):
+        points = get_points_from_transform(self)
+        if self.args.thumb_case == 'cone':
+            x = fit_cone_to_points(points)
+            return get_cone(x[0:3], x[3:6], x[6], x[7])
+
 
 
     def get_shell_for_column(self, col):
@@ -293,18 +301,23 @@ class Keyboard():
                 key_holes.append(self.transform_switch(self.single_keyhole(), i, j))
                 cutouts.append(self.transform_switch(self.switch_cutout(), i, j))
 
-        case = self.get_case()
+        # case = self.get_case()
 
         # case = case.get_inner()
-        case = case.get_shell()
+        # case = case.get_shell()
         # for cutout in cutouts:
         #     case = case.difference(cutout)
 
-        # for i in range(5):
-        #     key_holes.append(self.transform_thumb(i, self.single_keyhole()))
+        key_holes = []
+        for i in range(self.args.n_thumbs):
+            key_holes.append(self.transform_thumb(self.single_keyhole(), i))
 
-        # return sum(key_holes) + case
-        return case
+        thumb_case = self.get_thumb_case()
+
+        # return sum(key_holes)
+        # return thumb_case
+        return sum(key_holes) + thumb_case
+        # return case
 
 
     def to_scad(self, model=None, fname=None):

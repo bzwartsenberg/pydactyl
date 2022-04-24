@@ -115,7 +115,7 @@ class Shell():
 
 #TODO: update to only close one end by choice?
 class CylinderShell(Shell):
-    def __init__(self, h, r, thickness, close_ends=False, center=True, segments=False):
+    def __init__(self, h, r, thickness, close_ends=False, center=True, segments=50):
         if close_ends:
             self.inner = Cylinder(h - thickness, r=(r - thickness), center=center, segments=segments)
         else:
@@ -127,15 +127,15 @@ class BoxShell(Shell):
     def __init__(self, size, thickness, close_top=True, close_bottom=False, center=True):
         if type(size) is float or type(size) is int:
             size = [size, size, size]
-        size = np.array(size)
-        self.outer = Cube(size, center=center)
+        self.size = np.array(size)
+        self.outer = Cube(self.size, center=center)
 
         if center:
-            mins = - size / 2. + np.ones(3) * thickness
-            maxs = size / 2. - np.ones(3) * thickness
+            mins = - self.size / 2. + np.ones(3) * thickness
+            maxs = self.size / 2. - np.ones(3) * thickness
         else:
             mins = np.ones(3) * thickness
-            maxs = size / 2.
+            maxs = self.size / 2.
 
         if not close_top:
             maxs[2] += thickness + eps
@@ -149,6 +149,88 @@ class BoxShell(Shell):
         self.inner = Translate(inner_offset)(Cube(inner_size, center=True))
 
         self.shell = Difference()(self.outer, self.inner)
+
+class RoundedBoxShell(Shell):
+    def __init__(self, size, thickness, radius, round_top=True, round_bottom=False, segments=50):
+        boxshell = BoxShell(size, thickness, close_top=True, close_bottom=True, center=True)
+
+        assert radius > thickness, "Cannot round corners if radius < thickness"
+
+        outer = boxshell.outer
+        inner = boxshell.inner
+
+        self.size = size
+        self.radius = radius
+
+        outer_corners = []
+        outer_fills = []
+        outer = []
+
+        outer = [Cube(np.array(size) - 2.0 * radius, center=True)]
+        for i,j in zip([1, 1, -1, -1], [1, -1, 1, -1]):
+            outer.append(Cylinder(size[2] - 2 * radius, r=radius, center=True, segments=segments).translate([(size[0] / 2 - radius) * i, (size[1] / 2 - radius) * j, 0.]))
+            if j == 1:
+                outer.append(Cube([radius, size[1] - 2 * radius, size[2] - 2 * radius], center=True).translate([i * (size[0] - radius) / 2, 0., 0.]))
+                outer.append(Cube([size[0] - 2 * radius, radius, size[2] - 2 * radius], center=True).translate([0., i * (size[1] - radius) / 2, 0.]))
+                outer.append(Cube([size[0] - 2 * radius, size[1] - 2 * radius, radius], center=True).translate([0., 0., i * (size[2] - radius) / 2]))
+            if round_top:
+                if j == 1:
+                    outer.append(Cylinder(size[0] - 2 * radius, r=radius, center=True, segments=segments).rotate(90, [0., 1., 0]).translate([0., (size[1] / 2 - radius) * i, size[2] / 2 - radius]))
+                    outer.append(Cylinder(size[1] - 2 * radius, r=radius, center=True, segments=segments).rotate(90, [1., 0., 0]).translate([(size[0] / 2 - radius) * i, 0., size[2] / 2 - radius]))
+                outer.append(Sphere(r=radius, segments=segments).translate([(size[0] / 2 - radius) * i, (size[1] / 2 - radius) * j, size[2] / 2 - radius]))
+            else:
+                outer.append(Cylinder(radius, r=radius, segments=segments, center=True).translate([(size[0] / 2 - radius) * i, (size[1] / 2 - radius) * j, (size[2] - radius) / 2]))
+                if j == 1:
+                    outer.append(Cube([radius, size[1] - 2 * radius, radius], center=True).translate([i * (size[0] - radius) / 2, 0., (size[2] - radius) / 2]))
+                    outer.append(Cube([size[0] - 2 * radius, radius, radius], center=True).translate([0., i * (size[1] - radius) / 2, (size[2] - radius) / 2]))
+
+            if round_bottom:
+                if j == 1:
+                    outer.append(Cylinder(size[0] - 2 * radius, r=radius, center=True, segments=segments).rotate(90, [0., 1., 0]).translate([0., (size[1] / 2 - radius) * i, -size[2] / 2 + radius]))
+                    outer.append(Cylinder(size[1] - 2 * radius, r=radius, center=True, segments=segments).rotate(90, [1., 0., 0]).translate([(size[0] / 2 - radius) * i, 0., -size[2] / 2 + radius]))
+                outer.append(Sphere(r=radius, segments=segments).translate([(size[0] / 2 - radius) * i, (size[1] / 2 - radius) * j, -size[2] / 2 + radius]))
+            else:
+                outer.append(Cylinder(radius, r=radius, segments=segments, center=True).translate([(size[0] / 2 - radius) * i, (size[1] / 2 - radius) * j, -(size[2] - radius) / 2]))
+                if j == 1:
+                    outer.append(Cube([radius, size[1] - 2 * radius, radius], center=True).translate([i * (size[0] - radius) / 2, 0., -(size[2] - radius) / 2]))
+                    outer.append(Cube([size[0] - 2 * radius, radius, radius], center=True).translate([0., i * (size[1] - radius) / 2, -(size[2] - radius) / 2]))
+
+        size = np.array(size) - 2.0 * thickness
+        radius = radius - thickness
+
+        inner = [Cube(np.array(size) - 2.0 * radius, center=True)]
+        for i,j in zip([1, 1, -1, -1], [1, -1, 1, -1]):
+            inner.append(Cylinder(size[2] - 2 * radius, r=radius, center=True, segments=segments).translate([(size[0] / 2 - radius) * i, (size[1] / 2 - radius) * j, 0.]))
+            if j == 1:
+                inner.append(Cube([radius, size[1] - 2 * radius, size[2] - 2 * radius], center=True).translate([i * (size[0] - radius) / 2, 0., 0.]))
+                inner.append(Cube([size[0] - 2 * radius, radius, size[2] - 2 * radius], center=True).translate([0., i * (size[1] - radius) / 2, 0.]))
+                inner.append(Cube([size[0] - 2 * radius, size[1] - 2 * radius, radius], center=True).translate([0., 0., i * (size[2] - radius) / 2]))
+            if round_top:
+                if j == 1:
+                    inner.append(Cylinder(size[0] - 2 * radius, r=radius, center=True, segments=segments).rotate(90, [0., 1., 0]).translate([0., (size[1] / 2 - radius) * i, size[2] / 2 - radius]))
+                    inner.append(Cylinder(size[1] - 2 * radius, r=radius, center=True, segments=segments).rotate(90, [1., 0., 0]).translate([(size[0] / 2 - radius) * i, 0., size[2] / 2 - radius]))
+                inner.append(Sphere(r=radius, segments=segments).translate([(size[0] / 2 - radius) * i, (size[1] / 2 - radius) * j, size[2] / 2 - radius]))
+            else:
+                inner.append(Cylinder(radius, r=radius, segments=segments, center=True).translate([(size[0] / 2 - radius) * i, (size[1] / 2 - radius) * j, (size[2] - radius) / 2]))
+                if j == 1:
+                    inner.append(Cube([radius, size[1] - 2 * radius, radius], center=True).translate([i * (size[0] - radius) / 2, 0., (size[2] - radius) / 2]))
+                    inner.append(Cube([size[0] - 2 * radius, radius, radius], center=True).translate([0., i * (size[1] - radius) / 2, (size[2] - radius) / 2]))
+
+            if round_bottom:
+                if j == 1:
+                    inner.append(Cylinder(size[0] - 2 * radius, r=radius, center=True, segments=segments).rotate(90, [0., 1., 0]).translate([0., (size[1] / 2 - radius) * i, -size[2] / 2 + radius]))
+                    inner.append(Cylinder(size[1] - 2 * radius, r=radius, center=True, segments=segments).rotate(90, [1., 0., 0]).translate([(size[0] / 2 - radius) * i, 0., -size[2] / 2 + radius]))
+                inner.append(Sphere(r=radius, segments=segments).translate([(size[0] / 2 - radius) * i, (size[1] / 2 - radius) * j, -size[2] / 2 + radius]))
+            else:
+                inner.append(Cylinder(radius, r=radius, segments=segments, center=True).translate([(size[0] / 2 - radius) * i, (size[1] / 2 - radius) * j, -(size[2] - radius) / 2]))
+                if j == 1:
+                    inner.append(Cube([radius, size[1] - 2 * radius, radius], center=True).translate([i * (size[0] - radius) / 2, 0., -(size[2] - radius) / 2]))
+                    inner.append(Cube([size[0] - 2 * radius, radius, radius], center=True).translate([0., i * (size[1] - radius) / 2, -(size[2] - radius) / 2]))
+
+        self.outer = Union()(*outer)
+        self.inner = Union()(*inner)
+        self.shell = Difference()(self.outer, self.inner)
+
 
 class SphericalShell(Shell):
     def __init__(self, r, thickness, segments=50):

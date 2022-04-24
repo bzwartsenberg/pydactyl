@@ -9,6 +9,7 @@ numpy = "*"
 virtualenv = "*"
 ipython = "*"
 pyyaml = "*"
+scipy = "*"
 
 [dev-packages]
 
