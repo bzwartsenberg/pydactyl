@@ -7,7 +7,7 @@ from solid import scad_render_to_file
 import sys
 import numpy as np
 from collections import defaultdict
-from utils import cube_around_points, cube_surrounding_column, get_cylindrical_shell, get_y_wall_between_points, rotate_around_origin, get_spherical_shell, half_cylindrical_shell
+from utils import cube_around_points, cube_surrounding_column, get_cylindrical_shell, get_hulls, get_y_wall_between_points, rotate_around_origin, get_spherical_shell, half_cylindrical_shell
 from shell import CylinderShell, BoxShell, SphericalShell, ConicalShell, WalledCylinderShells, half_cylinder_shell
 import yaml
 from types import SimpleNamespace
@@ -140,7 +140,7 @@ class Keyboard():
         shape = shape.translate(self.column_offsets[col])
         return shape
 
-    def transform_switch(self, shape, row, col):
+    def transform_switch(self, shape, row, col, tent_and_z_offset=True):
         """Key placement function
 
         Places shape according to the internal key column dictionary, with the CAP TOPS on a torus,
@@ -156,7 +156,8 @@ class Keyboard():
         """
         shape = self.transform_row(shape, row, col)
         shape = self.transform_column(shape, col)
-        shape = self.tent_and_z_offset(shape)
+        if tent_and_z_offset:
+            shape = self.tent_and_z_offset(shape)
         return shape
 
 
@@ -252,42 +253,58 @@ class Keyboard():
         extent_max = np.concatenate(extent_max, axis=0).max(axis=0)
         return x_loc, extent_min, extent_max
 
+    def get_hulls(self, extent_min, extent_max):
+        return get_hulls(self, extent_min, extent_max)
 
-    def get_case(self, extent_min, extent_max):
-        size = (extent_max - extent_min) + np.array([10., 10., 5.]) + self.args.plate_thickness#TODO: make param
-        offset = (extent_max + extent_min) / 2
+
+
+    def get_case(self):
+        x_loc, extent_min, extent_max = self.get_key_separations()
+
+        if self.args.main_grid_support_type == 'cylinders':
+            shells = []
+            for j in range(self.args.ncols):
+                shells.append(self.get_shell_for_column(j))
+            main_grid_support = WalledCylinderShells(shells, x_loc, thickness=0.5 * self.args.plate_thickness, y_min=-100, y_max=100., z_min=-100, z_max=100)
+        elif self.args.main_grid_support_type == 'hulls':
+            main_grid_support = self.get_hulls(extent_min, extent_max)
+        else:
+            raise ValueError(f'Unkown grid support type {self.args.main_grid_support_type}')
+
+        size = (extent_max - extent_min) + np.array([10., 10., 0.]) + self.args.plate_thickness#TODO: make param
+
+        offset = (extent_max + extent_min) / 2 - np.array([0., 0., 0.])
         case = BoxShell(size, thickness=self.args.plate_thickness, close_top=True, close_bottom=False).translate(offset)
         case = self.tent_and_z_offset(case)
+        case = case.difference(main_grid_support)
+        case = main_grid_support
+
         return case
 
 
     def get_model(self):
 
         key_holes = []
-        shells = []
         cutouts = []
         for j in range(self.args.ncols):
-            shells.append(self.get_shell_for_column(j))
             # if j < self.args.ncols - 1:
                 # shells.append(self.get_vertical_wall_between_shells(j, j + 1))
             for i in range(self.column_nrows[j]):
                 key_holes.append(self.transform_switch(self.single_keyhole(), i, j))
                 cutouts.append(self.transform_switch(self.switch_cutout(), i, j))
 
+        case = self.get_case()
 
-        x_loc, extent_min, extent_max = self.get_key_separations()
-        case = self.get_case(extent_min, extent_max)
-        shell = WalledCylinderShells(shells, x_loc, thickness=0.5 * self.args.plate_thickness, y_min=-100, y_max=100., z_min=-100, z_max=100)
-        case = case.difference(shell)
-
+        # case = case.get_inner()
         case = case.get_shell()
-        for cutout in cutouts:
-            case = case.difference(cutout)
+        # for cutout in cutouts:
+        #     case = case.difference(cutout)
 
         # for i in range(5):
         #     key_holes.append(self.transform_thumb(i, self.single_keyhole()))
 
-        return sum(key_holes)  #+ case
+        # return sum(key_holes) + case
+        return case
 
 
     def to_scad(self, model=None, fname=None):
