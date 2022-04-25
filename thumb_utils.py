@@ -1,4 +1,4 @@
-from shell import BoxShell
+from shell import BoxShell, ConicalShell
 from super_solid import Cube, Cylinder, Sphere
 from super_solid import Union, Difference, Intersection, Hull
 from super_solid import Translate, Mirror, Scale, Rotate
@@ -38,7 +38,6 @@ def fit_cone_to_points(points):
         return np.square((np.sqrt(r2_cone) - np.sqrt(r2_points))).mean()
 
     res = minimize(opt_func, x0, args=(points), method='Nelder-Mead', tol=1e-6)
-    print(res.x)
 
     return res.x
 
@@ -48,6 +47,11 @@ def get_cone(origin, v, psi, phi):
     r1 = np.tan(phi) * z1
     r2 = np.tan(phi) * z2
     return Cylinder((z2 - z1), r1=r1, r2=r2, center=False).translate([0., 0., z1]).rotate(psi * 180 / np.pi, v).translate(origin)
+
+def get_conical_shell(origin, v, psi, phi, thickness):
+    z2 = 3000.
+    r2 = np.tan(phi) * z2
+    return ConicalShell(z2, r2, thickness).translate([0., 0., -z2]).rotate(180., [1., 0., 0.]).rotate(psi * 180 / np.pi, v).translate(origin)
 
 def get_points_from_transform(kb):
 

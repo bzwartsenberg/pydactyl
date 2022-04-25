@@ -1,5 +1,5 @@
 #!/usr/bin/env ipython
-from shell import BoxShell
+from shell import BoxShell, RoundedBoxShell
 from super_solid import Cube, Cylinder, Sphere
 from super_solid import Union, Difference, Intersection, Hull
 from super_solid import Translate, Mirror, Scale, Rotate
@@ -83,12 +83,8 @@ def get_y_wall_between_points(points0, points1, thickness, margin):
 
     maxima = np.concatenate((points0, points1)).max(axis=0) + np.array(margin)
     minima = np.concatenate((points0, points1)).min(axis=0) - np.array(margin)
-    print(points0, points1, maxima, minima)
 
-    print(points0[:,0].max())
-    print(points1[:,0].min())
     at_x = (points0[:,0].max() + points1[:,0].min()) / 2
-    print(at_x)
 
     extent = maxima - minima
     extent = np.array([thickness, *extent[1:]])
@@ -99,14 +95,13 @@ def get_y_wall_between_points(points0, points1, thickness, margin):
     return Translate(offset)(Cube(extent, center=True))
 
 
-def get_hulls(kb, extent_min, extent_max):
+def get_hulls(kb, extent_min, extent_max, interpolate_z=False):
     space = np.array([3., 3., -5.])
     extent_max = extent_max + space
     extent_min = extent_min - space
     d = 0.1
     i2range = 2 * (max([kb.column_nrows[j] for j in range(kb.args.ncols)]) + 1)
     j2range = 2 * (kb.args.ncols + 1)
-    print(i2range, j2range)
 
     def is_key(i2, j2):
         # check if the grid square between i2,j2 and i2+1 and j2+1 is a key hole
@@ -128,7 +123,6 @@ def get_hulls(kb, extent_min, extent_max):
     def walk_to_nearest_key(i2, j2, di2=0, dj2=0):
         iterations = 0
         while not (is_key(2 * ( (i2 - 1) // 2) + 1, 2 * ( (j2 - 1) // 2) + 1) or is_end(i2, j2)):
-            print(i2, j2)
             iterations += 1
             i2 += di2
             j2 += dj2
@@ -149,23 +143,72 @@ def get_hulls(kb, extent_min, extent_max):
         posts = {(0, 0) : tl, (0, 1) : tr, (1, 0): bl, (1, 1): br}
         return kb.transform_switch(posts[(rem_i, rem_j)], i, j, tent_and_z_offset=False)
 
+    def get_y_between_for_i(i2p1, j2p1,i2p2, j2p2, i2):
+        if is_end(i2p1, j2p1):
+            if j2p1 == 0:
+                y1 = extent_max[1]
+            else:
+                y1 = extent_min[1]
+        else:
+            y1 = get_regular_post(i2p1, j2p1).get_points().mean(axis=0)[1]
+        if is_end(i2p2, j2p2):
+            if j2p2 == 0:
+                y2 = extent_max[1]
+            else:
+                y2 = extent_min[1]
+        else:
+            y2 = get_regular_post(i2p2, j2p2).get_points().mean(axis=0)[1]
+
+        y = y1
+        if not (i2p2 == i2p1):
+            y = y + (y2 - y1) * (i2 - i2p1) / (i2p2 - i2p1)
+        return y
+
+    def get_x_between_for_j(i2p1, j2p1,i2p2, j2p2, j2):
+        if is_end(i2p1, j2p1):
+            if i2p1 == 0:
+                x1 = extent_max[0]
+            else:
+                x1 = extent_min[0]
+        else:
+            x1 = get_regular_post(i2p1, j2p1).get_points().mean(axis=0)[0]
+        if is_end(i2p2, j2p2):
+            if i2p2 == 0:
+                x2 = extent_max[0]
+            else:
+                x2 = extent_min[0]
+        else:
+            x2 = get_regular_post(i2p2, j2p2).get_points().mean(axis=0)[0]
+
+        x = x1
+        if not (j2p2 == j2p1):
+            x = x + (x2 - x1) * (j2 - j2p1) / (j2p2 - j2p1)
+        return x
 
     def get_end_post(i2, j2):
         if is_corner(i2, j2):
-            tr = [extent_min[0] * (1 - np.sign(j2)) + extent_max[0] * np.sign(j2), extent_max[1] * (1 - np.sign(i2)) + extent_min[1] * np.sign(i2), extent_max[2]]
+            tr = [extent_min[0] * (1 - np.sign(j2)) + extent_max[0] * np.sign(j2), extent_max[1] * (1 - np.sign(i2)) + extent_min[1] * np.sign(i2), extent_max[2] - kb.args.case_thickness / 2]
         elif i2 == 0:
-            pts = get_regular_post(*walk_to_nearest_key(i2 + 1, j2, di2=1)).get_points().mean(axis=0)
-            tr = [pts[0], extent_max[1], extent_max[2]]
+            i2p1, j2p1 = walk_to_nearest_key(i2 + 1, j2, di2=-1)
+            i2p2, j2p2 = walk_to_nearest_key(i2 + 1, j2, di2=1)
+            x = get_x_between_for_j(i2p1, j2p1, i2p2, j2p2, j2)
+            tr = [x, extent_max[1], extent_max[2] - kb.args.case_thickness / 2]
         elif j2 == 0:
-            pts = get_regular_post(*walk_to_nearest_key(i2, j2 + 1, dj2=1)).get_points().mean(axis=0)
-            tr = [extent_min[0], pts[1], extent_max[2]]
+            i2p1, j2p1 = walk_to_nearest_key(i2, j2 + 1, di2=-1)
+            i2p2, j2p2 = walk_to_nearest_key(i2, j2 + 1, di2=1)
+            y = get_y_between_for_i(i2p1, j2p1, i2p2, j2p2, i2)
+            tr = [extent_min[0], y, extent_max[2] - kb.args.case_thickness / 2]
         elif i2 == (i2range - 1):
-            pts = get_regular_post(*walk_to_nearest_key(i2 - 1, j2, di2=-1)).get_points().mean(axis=0)
-            tr = [pts[0], extent_min[1], extent_max[2]]
+            i2p1, j2p1 = walk_to_nearest_key(i2 - 1, j2, di2=-1)
+            i2p2, j2p2 = walk_to_nearest_key(i2 - 1, j2, di2=1)
+            x = get_x_between_for_j(i2p1, j2p1, i2p2, j2p2, j2)
+            tr = [x, extent_min[1], extent_max[2] - kb.args.case_thickness / 2]
         elif j2 == (j2range - 1):
-            pts = get_regular_post(*walk_to_nearest_key(i2, j2 - 1, dj2=-1)).get_points().mean(axis=0)
-            tr = [extent_max[0], pts[1], extent_max[2]]
-        return Cube([d, d, kb.args.plate_thickness], center=True).translate(tr)
+            i2p1, j2p1 = walk_to_nearest_key(i2, j2 - 1, di2=-1)
+            i2p2, j2p2 = walk_to_nearest_key(i2, j2 - 1, di2=1)
+            y = get_y_between_for_i(i2p1, j2p1, i2p2, j2p2, i2)
+            tr = [extent_max[0], y, extent_max[2] - kb.args.case_thickness / 2]
+        return Cube([d, d, kb.args.case_thickness], center=True).translate(tr)
 
     def get_regular_or_end_post(i2, j2):
         if is_key(2 * ( (i2 - 1) // 2) + 1, 2 * ( (j2 - 1) // 2) + 1):
@@ -185,12 +228,12 @@ def get_hulls(kb, extent_min, extent_max):
         pos_ip2 = get_regular_or_end_post(i2p2, j2).get_points().mean(axis=0)
         pos_jp1 = get_regular_or_end_post(i2, j2p1).get_points().mean(axis=0)
         pos_jp2 = get_regular_or_end_post(i2, j2p2).get_points().mean(axis=0)
-        x = pos_ip1[0] + ((i2 - i2p1) / (i2p2 - i2p1) * (pos_ip2[0] - pos_ip1[0]))
-        y = pos_jp1[1] + ((j2 - j2p1) / (j2p2 - j2p1) * (pos_jp2[1] - pos_jp1[1]))
-        # z = 0.5 * (pos_jp1[2] + ((j2 - j2p1) / (j2p2 - j2p1) * (pos_jp2[2] - pos_jp1[2])) + pos_ip1[0] + ((i2 - i2p1) / (i2p2 - i2p1) * (pos_ip2[2] - pos_ip1[2])))
-        z = extent_max[2]
-        print('interpolating: ', i2, j2, x, y, z)
-        print(pos_ip1, pos_ip2, pos_jp1, pos_jp2)
+        y = pos_ip1[1] + ((i2 - i2p1) / (i2p2 - i2p1) * (pos_ip2[1] - pos_ip1[1]))
+        x = pos_jp1[0] + ((j2 - j2p1) / (j2p2 - j2p1) * (pos_jp2[0] - pos_jp1[0]))
+        if interpolate_z:
+            z = 0.5 * (pos_jp1[2] + ((j2 - j2p1) / (j2p2 - j2p1) * (pos_jp2[2] - pos_jp1[2])) + pos_ip1[2] + ((i2 - i2p1) / (i2p2 - i2p1) * (pos_ip2[2] - pos_ip1[2])))
+        else:
+            z = extent_max[2]
         return Cube([d, d, kb.args.plate_thickness], center=True).translate([x, y, z])
 
     def get_post(i2, j2):
@@ -216,12 +259,19 @@ def get_hulls(kb, extent_min, extent_max):
 
 
     hulls = Union()(hulls)
-    extent_max = hulls.get_points().max(axis=0)
-    extent_min = hulls.get_points().min(axis=0)
+    xy_space = (np.array([*kb.args.grid_xy_space, 0]) - space) * np.array([1., 1., 0.])
+    z_space = np.array([0., 0., 10 + kb.args.grid_z_space])
+    box_extent_max = extent_max + xy_space
+    box_extent_min = extent_min - xy_space - z_space
 
-    size = extent_max - extent_min
-    loc = (extent_max + extent_min) / 2
-    shell = BoxShell(size, kb.args.plate_thickness).translate(loc)
-    shell.shell = hulls
+    cutout = Cube(extent_max + np.array([0., 0., 2.]) - extent_min, center=True).translate((extent_max + np.array([0., 0., 2.]) + extent_min) / 2)
+
+    size = box_extent_max - box_extent_min
+    loc = (box_extent_max + box_extent_min) / 2
+    if kb.args.rounded_grid_case:
+        shell = RoundedBoxShell(size, kb.args.case_thickness, radius=kb.args.grid_radius, round_top=True, round_bottom=False).translate(loc)
+    else:
+        shell = BoxShell(size, kb.args.case_thickness).translate(loc)
+    shell.shell = shell.shell.difference(cutout).union(hulls)
 
     return shell
