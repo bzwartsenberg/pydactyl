@@ -248,7 +248,7 @@ def get_hulls(kb, extent_min, extent_max, interpolate_z=False):
             return get_interpolate(i2, j2)
 
     def get_hull(i2, j2, i2p1, j2p1):
-        return Hull()([get_post(i2,j2), get_post(i2,j2p1), get_post(i2p1,j2), get_post(i2p1, j2p1)])
+        return Hull()(get_post(i2,j2), get_post(i2,j2p1), get_post(i2p1,j2), get_post(i2p1, j2p1))
 
     hulls = []
     for i2 in range(i2range - 1):

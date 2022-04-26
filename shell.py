@@ -1,5 +1,5 @@
 #!/usr/bin/env ipython
-from super_solid import Union, Difference, Intersection
+from super_solid import Hull, Union, Difference, Intersection
 from super_solid import Cube, Cylinder, Sphere
 from super_solid import Translate, Rotate, Scale
 from super_solid import SuperSolid
@@ -151,6 +151,29 @@ class BoxShell(Shell):
         self.shell = Difference()(self.outer, self.inner)
 
 class RoundedBoxShell(Shell):
+    def __init__(self, size, thickness, radius, round_top=True, round_bottom=False, segments=50):
+        assert radius > thickness, "Cannot round corners if radius < thickness"
+        inner = []
+        outer = []
+        for i,j in zip([1, 1, -1, -1], [1, -1, 1, -1]):
+            if round_top:
+                outer.append(Sphere(r=radius, segments=segments).translate([(size[0] / 2 - radius) * i, (size[1] / 2 - radius) * j, size[2] / 2 - radius]))
+                inner.append(Sphere(r=(radius - thickness), segments=segments).translate([(size[0] / 2 - radius) * i, (size[1] / 2 - radius) * j, size[2] / 2 - radius]))
+            else:
+                outer.append(Cylinder(2 * radius, r=(radius), segments=segments, center=True).translate([(size[0] / 2 - radius) * i, (size[1] / 2 - radius) * j, size[2] / 2 - radius]))
+                inner.append(Cylinder(2 * radius - 2 * thickness, r=(radius-thickness), segments=segments, center=True).translate([(size[0] / 2 - radius) * i, (size[1] / 2 - radius) * j, size[2] / 2 - radius]))
+            if round_bottom:
+                outer.append(Sphere(r=radius, segments=segments).translate([(size[0] / 2 - radius) * i, (size[1] / 2 - radius) * j, - size[2] / 2 + radius]))
+                inner.append(Sphere(r=(radius - thickness), segments=segments).translate([(size[0] / 2 - radius) * i, (size[1] / 2 - radius) * j, - size[2] / 2 + radius]))
+            else:
+                outer.append(Cylinder(2 * radius, r=(radius), segments=segments, center=True).translate([(size[0] / 2 - radius) * i, (size[1] / 2 - radius) * j, - size[2] / 2 + radius]))
+                inner.append(Cylinder(2 * radius - 2 * thickness, r=(radius-thickness), segments=segments, center=True).translate([(size[0] / 2 - radius) * i, (size[1] / 2 - radius) * j, -size[2] / 2 + radius]))
+
+        self.inner = Hull()(*inner)
+        self.outer = Hull()(*outer)
+        self.shell = Difference()(self.outer, self.inner)
+
+class RoundedBoxShellNoHulls(Shell): #Slow, very very slow
     def __init__(self, size, thickness, radius, round_top=True, round_bottom=False, segments=50):
         boxshell = BoxShell(size, thickness, close_top=True, close_bottom=True, center=True)
 

@@ -14,6 +14,7 @@ import yaml
 from types import SimpleNamespace
 from pprint import pprint
 
+eps = 1e-1
 
 class Keyboard():
 
@@ -233,7 +234,7 @@ class Keyboard():
                 limit_box = RoundedBoxShell(extent_max - extent_min, self.args.case_thickness, radius=self.args.thumb_radius, round_top=False, round_bottom=False).translate((extent_max + extent_min) / 2)
             else:
                 box = BoxShell(extent_max - extent_min, self.args.case_thickness).translate((extent_max + extent_min) / 2)
-                limit_box = BoxShell(extent_max - extent_min + np.array([-space[0], -space[1], 50.]), self.args.case_thickness).translate((extent_max + extent_min) / 2)
+                limit_box = BoxShell(extent_max - extent_min - np.array([2 * space[0] - eps -self.args.case_thickness, 2 * space[1] - eps -self.args.case_thickness, 500.]), self.args.case_thickness).translate((extent_max + extent_min) / 2)
             shell = shell.intersection(box)
 
         return shell, limit_box
@@ -319,6 +320,9 @@ class Keyboard():
         thumb_case, limit_box = self.get_thumb_case_and_limit_box()
         case = case.difference(limit_box)
         case = case.union(thumb_case)
+
+        bottom = BoxShell([200, 200, 100], self.args.case_thickness).translate([0, 0., -60.])
+        case = case.difference(bottom)
 
         case = case.shell
 
