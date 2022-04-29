@@ -338,6 +338,61 @@ class WalledCylinderShells(Shell):
         self.outer = Union()(*outers)
         self.shell = Union()(*shells)
 
+class TentedBoxShell(Shell):
+    pass
+
+class TentedRoundedShell(Shell):
+    def __init__(self, xy_min, xy_max, at_z, z_below, tent_function, thickness, radius, segments=50):
+        """
+        Args:
+            xy_min, xy_max, at_z: extent and location in z BEFORE tenting
+            z_below: space to add below AFTER tenting
+            tent_function: function that can tent and offset a shape
+        Note: assumes tenting is around the y axis
+        """
+        xy_max, xy_min = np.array(xy_max), np.array(xy_min)
+        size_xy = xy_max - xy_min
+        loc_xy = (xy_min + xy_max) / 2
+        loc = np.array([*loc_xy, at_z])
+        inner = []
+        outer = []
+        for i,j in zip([1, 1, -1, -1], [1, -1, 1, -1]):
+            outer.append(Sphere(r=radius, segments=segments).translate([(size_xy[0] / 2 - radius) * i, (size_xy[1] / 2 - radius) * j, 0.]).translate(loc))
+            inner.append(Sphere(r=(radius - thickness), segments=segments).translate([(size_xy[0] / 2 - radius) * i, (size_xy[1] / 2 - radius) * j, 0.]).translate(loc))
+
+        inner = [tent_function(shape) for shape in inner]
+        outer = [tent_function(shape) for shape in outer]
+
+        outer_posns = np.concatenate([o.get_points() for o in outer])
+        sorted_outer_posns = outer_posns[outer_posns[:,2].argsort()]
+
+        # first two should be the lower ones, last two the higher
+        # we want the z-height of the lowest one, set the x to x - l / cos(theta), where
+        # tan(theta) = dz / dx
+        high = sorted_outer_posns[2]
+        low = sorted_outer_posns[0]
+
+
+        dx = abs(low[0] - high[0])
+        dz = abs(low[2] - high[2])
+
+
+        w = size_xy[0] / np.cos(np.arctan(dz / dx))
+
+
+        for i in [-1, 1]:
+            outer.append(Sphere(r=radius, segments=segments).translate([low[0] - w, i * (size_xy[1] / 2 - radius) + loc_xy[1], low[2]]))
+            inner.append(Sphere(r=radius - thickness, segments=segments).translate([low[0] - w, i * (size_xy[1] / 2 - radius) + loc_xy[1], low[2]]))
+
+        #     # and bottoms:
+            outer.append(Sphere(r=radius, segments=segments).translate([low[0], i * (size_xy[1] / 2 - radius) + loc_xy[1], low[2] - z_below]))
+            outer.append(Sphere(r=radius, segments=segments).translate([low[0] - w, i * (size_xy[1] / 2 - radius) + loc_xy[1], low[2] - z_below]))
+            inner.append(Sphere(r=radius - thickness, segments=segments).translate([low[0], i * (size_xy[1] / 2 - radius) + loc_xy[1], low[2] - z_below]))
+            inner.append(Sphere(r=radius - thickness, segments=segments).translate([low[0] - w, i * (size_xy[1] / 2 - radius) + loc_xy[1], low[2] - z_below]))
+
+        self.inner = Hull()(*inner)
+        self.outer = Hull()(*outer)
+        self.shell = Difference()(self.outer, self.inner)
 
 def box_around(mins, maxs):
     mins = np.array(mins)

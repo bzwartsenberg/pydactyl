@@ -9,7 +9,7 @@ import numpy as np
 from collections import defaultdict
 from thumb_utils import fit_cone_to_points, get_cone, get_conical_shell, get_points_from_transform
 from utils import cube_around_points, cube_surrounding_column, get_cylindrical_shell, get_hulls, get_y_wall_between_points, rotate_around_origin, get_spherical_shell, half_cylindrical_shell
-from shell import CylinderShell, BoxShell, RoundedBoxShell, SphericalShell, ConicalShell, WalledCylinderShells, half_cylinder_shell
+from shell import CylinderShell, BoxShell, RoundedBoxShell, SphericalShell, ConicalShell, TentedRoundedShell, WalledCylinderShells, half_cylinder_shell
 import yaml
 from types import SimpleNamespace
 from pprint import pprint
@@ -231,11 +231,13 @@ class Keyboard():
             shell = get_conical_shell(x[0:3], x[3:6], x[6], x[7], self.args.case_thickness)
             if self.args.rounded_thumb_case:
                 box = RoundedBoxShell(extent_max - extent_min, self.args.case_thickness, radius=self.args.thumb_radius, round_top=False, round_bottom=False).translate((extent_max + extent_min) / 2)
-                limit_box = RoundedBoxShell(extent_max - extent_min, self.args.case_thickness, radius=self.args.thumb_radius, round_top=False, round_bottom=False).translate((extent_max + extent_min) / 2)
+                limit_box = RoundedBoxShell(extent_max - extent_min - space + 2 * np.array([0., 0., 500]), self.args.case_thickness, radius=self.args.thumb_radius, round_top=False, round_bottom=False).translate((extent_max + extent_min) / 2)
             else:
                 box = BoxShell(extent_max - extent_min, self.args.case_thickness).translate((extent_max + extent_min) / 2)
-                limit_box = BoxShell(extent_max - extent_min - np.array([2 * space[0] - eps -self.args.case_thickness, 2 * space[1] - eps -self.args.case_thickness, 500.]), self.args.case_thickness).translate((extent_max + extent_min) / 2)
+                limit_box = BoxShell(extent_max - extent_min - np.array([2 * space[0] - eps -self.args.case_thickness, 2 * space[1] - eps -self.args.case_thickness, 100.]), self.args.case_thickness).translate((extent_max + extent_min) / 2)
             shell = shell.intersection(box)
+        else:
+            raise ValueError(f'Unkown thumb case type {self.args.thumb_case}')
 
         return shell, limit_box
 
@@ -275,65 +277,59 @@ class Keyboard():
 
     def get_case(self):
         x_loc, extent_min, extent_max = self.get_key_separations()
+        space = np.array(self.args.grid_xy_space)
+        extent_min[0:2] = extent_min[0:2] - space
+        extent_max[0:2] = extent_max[0:2] + space
 
         if self.args.main_grid_support_type == 'cylinders':
             shells = []
             for j in range(self.args.ncols):
                 shells.append(self.get_shell_for_column(j))
             support = WalledCylinderShells(shells, x_loc, thickness=self.args.case_thickness * 0.8, y_min=-100, y_max=100., z_min=-100, z_max=100)
-            size = (extent_max - extent_min) + np.array([*self.args.grid_xy_space, self.args.grid_z_space])
-            offset = (extent_max + extent_min) / 2 + np.array([0., 0., -self.args.grid_z_space / 2])
-
             if self.args.rounded_grid_case:
-                case = RoundedBoxShell(size, self.args.case_thickness, radius=self.args.grid_radius, round_top=True, round_bottom=False).translate(offset)
+                case = TentedRoundedShell(extent_min[0:2], extent_max[0:2], extent_max[2],
+                                          z_below=100.,
+                                          tent_function=self.tent_and_z_offset,
+                                          thickness=self.args.case_thickness, radius=self.args.grid_radius)
             else:
-                case = BoxShell(size, thickness=self.args.case_thickness, close_top=True, close_bottom=False).translate(offset)
-            case = case.difference(support)
+                raise RuntimeError('')
+            case = case.difference(self.tent_and_z_offset(support))
         elif self.args.main_grid_support_type == 'hulls':
             case = self.get_hulls(extent_min, extent_max)
         else:
             raise ValueError(f'Unkown grid support type {self.args.main_grid_support_type}')
-        case = self.tent_and_z_offset(case)
+
         return case
 
 
     def get_model(self):
 
+
         key_holes = []
         cutouts = []
         for j in range(self.args.ncols):
-            # if j < self.args.ncols - 1:
-                # shells.append(self.get_vertical_wall_between_shells(j, j + 1))
             for i in range(self.column_nrows[j]):
                 key_holes.append(self.transform_switch(self.single_keyhole(), i, j))
                 cutouts.append(self.transform_switch(self.switch_cutout(), i, j))
 
         case = self.get_case()
 
-        # case = case.get_inner()
-        # case = case.get_shell()
 
         for i in range(self.args.n_thumbs):
             key_holes.append(self.transform_thumb(self.single_keyhole(), i))
             cutouts.append(self.transform_thumb(self.switch_cutout(), i))
 
         thumb_case, limit_box = self.get_thumb_case_and_limit_box()
-        case = case.difference(limit_box)
-        case = case.union(thumb_case)
-
-        bottom = BoxShell([200, 200, 100], self.args.case_thickness).translate([0, 0., -60.])
-        case = case.difference(bottom)
-
-        case = case.shell
+        case = case.difference(limit_box, outer=False)
+        case = case.union(thumb_case, outer=True)
 
         for cutout in cutouts:
             case = case.difference(cutout)
 
-        # return case.shell
-        return sum(key_holes) + case #+ thumb_case.shell
-        # return thumb_case
-        # return sum(key_holes) + thumb_case.shell + case.shell
-        # return case
+        _, extent_min, _ = self.get_key_separations()
+        cut = Cube([1000., 1000., 1000.], center=True).translate([0., 0., -500. - extent_min[2] - self.args.grid_z_space_below])
+        return case.shell.difference(cut) + sum(key_holes)
+
 
 
     def to_scad(self, model=None, fname=None):
