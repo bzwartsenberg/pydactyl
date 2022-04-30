@@ -1,0 +1,77 @@
+# General parameters:
+# Keyswitch Cutout parameters:
+keyswitch_width: 14.2
+keyswitch_height: 14.2
+keyswitch_space_below: 8.0 #used to determine the bottom of the case
+plate_thickness: 2.0
+side_nub_thickness: 4.0
+retention_tab_thickness: 1.5
+key_hole_rim_width: 1.5
+create_side_nubs: False
+# Global main grid layout parameters:
+alpha: -15.0 # row angle delta (rotation around x), if not given explicitly
+beta: -5.0 # column angle delta (rotation around y)
+key_height: 12.7 # distance from the top of the plate to keycap surface, used to offset switches back
+extra_height: 1.0 # additional row distance for the plate projection
+extra_width: 2.5 # additional column distance for the plate projection
+ncols: 5 # number of columns
+column_angle_offset: 10.0 # angle for column 0, in case not all anlges are given explicitly
+# Tenting and overall offset:
+tenting_angle: 15.0  # number of columns
+keyboard_z_offset: 10.
+# Default Column:
+default_column: # column parameters for columns that are not explicitly given. Angle is calculated as col * beta + offset
+  nrows: 4
+  row_angle_offset: 15.
+  z_rotation_angle: 0.0
+  column_offset: [0., 0., 0.]
+# Custom Columns, for custom settings, specify each column like this, it will overwrite the default
+column_0:
+  angle: 10. #if angle is not given, it is calculate as col * beta + offset #TODO
+  nrows: 3
+  row_angle_offset: 15.
+  z_rotation_angle: 0.0
+  column_offset: [0., 0., 0.]
+column_1:
+  angle: 5.
+  nrows: 3
+  row_angle_offset: 15.
+  z_rotation_angle: 0.0
+  column_offset: [0., 0., 0.]
+column_2:
+  angle: 0.
+  nrows: 4
+  row_angle_offset: 15.
+  z_rotation_angle: 0.0
+  column_offset: [0., 2.82, -4.5]
+column_4:
+  angle: -10.
+  nrows: 3
+  row_angle_offset: 15.
+  z_rotation_angle: -0.0
+  column_offset: [0., -12., 5.64]
+column_5:
+  angle: -15.
+  nrows: 3
+  row_angle_offset: 15.
+  z_rotation_angle: 0.0
+  column_offset: [0., -12., 5.64]
+# Thumbs:
+thumb_case: cone #cone, buble, bubbles
+n_thumbs: 5
+thumb_box: intersection # oriented, square, intersection
+rounded_thumb_case: True
+thumb_radius: 3.0
+thumb_space: [3., 3., 50.]
+thumb_extra_x_space: 50.
+# Case
+main_grid_support_type: hulls # cylinders, hulls
+case_thickness: 1.0  # wall thickness of the case
+grid_xy_space: [10., 7.] # space to from the key perimeter to the edge of the box
+rounded_grid_case: True
+grid_radius: 3.0
+cut_below_lowest_switch: 8 # how far to cut the box below the lowest switch
+# screws:
+screw_insert_od: 3.0
+screw_insert_h: 7.0
+screw_od: 2.5
