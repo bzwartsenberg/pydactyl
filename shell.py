@@ -353,7 +353,7 @@ class TentedRoundedShell(Shell):
         xy_max, xy_min = np.array(xy_max), np.array(xy_min)
         size_xy = xy_max - xy_min
         loc_xy = (xy_min + xy_max) / 2
-        loc = np.array([*loc_xy, at_z])
+        loc = np.array([*loc_xy, at_z - radius])
         inner = []
         outer = []
         for i,j in zip([1, 1, -1, -1], [1, -1, 1, -1]):
@@ -380,6 +380,7 @@ class TentedRoundedShell(Shell):
         w = size_xy[0] / np.cos(np.arctan(dz / dx))
 
 
+        self.outer_xy = []
         for i in [-1, 1]:
             outer.append(Sphere(r=radius, segments=segments).translate([low[0] - w, i * (size_xy[1] / 2 - radius) + loc_xy[1], low[2]]))
             inner.append(Sphere(r=radius - thickness, segments=segments).translate([low[0] - w, i * (size_xy[1] / 2 - radius) + loc_xy[1], low[2]]))
@@ -390,9 +391,15 @@ class TentedRoundedShell(Shell):
             inner.append(Sphere(r=radius - thickness, segments=segments).translate([low[0], i * (size_xy[1] / 2 - radius) + loc_xy[1], low[2] - z_below]))
             inner.append(Sphere(r=radius - thickness, segments=segments).translate([low[0] - w, i * (size_xy[1] / 2 - radius) + loc_xy[1], low[2] - z_below]))
 
+            self.outer_xy.append([low[0] - w - radius, i * (size_xy[1] / 2 ) + loc_xy[1]])
+            self.outer_xy.append([low[0] + radius, i * (size_xy[1] / 2 ) + loc_xy[1]])
+
         self.inner = Hull()(*inner)
         self.outer = Hull()(*outer)
         self.shell = Difference()(self.outer, self.inner)
+
+    def get_screw_corners(self):
+        return self.outer_xy
 
 def box_around(mins, maxs):
     mins = np.array(mins)

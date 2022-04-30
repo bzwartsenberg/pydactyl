@@ -7,7 +7,7 @@ from solid import scad_render_to_file
 import sys
 import numpy as np
 from collections import defaultdict
-from thumb_utils import fit_cone_to_points, get_cone, get_conical_shell, get_points_from_transform
+from thumb_utils import fit_cone_to_points, fit_oriented_box_to_extent, get_cone, get_conical_shell, get_points_from_transform
 from utils import cube_around_points, cube_surrounding_column, get_cylindrical_shell, get_hulls, get_y_wall_between_points, rotate_around_origin, get_spherical_shell, half_cylindrical_shell
 from shell import CylinderShell, BoxShell, RoundedBoxShell, SphericalShell, ConicalShell, TentedRoundedShell, WalledCylinderShells, half_cylinder_shell
 import yaml
@@ -223,6 +223,7 @@ class Keyboard():
 
     def get_thumb_case_and_limit_box(self):
         points = get_points_from_transform(self)
+        oriented_box_ang, oriented_size, oriented_loc = fit_oriented_box_to_extent(points)
         space = np.array(self.args.thumb_space)
         extent_max = points.max(axis=0) + space
         extent_min = points.min(axis=0) - space
@@ -230,11 +231,26 @@ class Keyboard():
             x = fit_cone_to_points(points)
             shell = get_conical_shell(x[0:3], x[3:6], x[6], x[7], self.args.case_thickness)
             if self.args.rounded_thumb_case:
-                box = RoundedBoxShell(extent_max - extent_min, self.args.case_thickness, radius=self.args.thumb_radius, round_top=False, round_bottom=False).translate((extent_max + extent_min) / 2)
-                limit_box = RoundedBoxShell(extent_max - extent_min - space + 2 * np.array([0., 0., 500]), self.args.case_thickness, radius=self.args.thumb_radius, round_top=False, round_bottom=False).translate((extent_max + extent_min) / 2)
+                square_box = RoundedBoxShell(extent_max - extent_min, self.args.case_thickness, radius=self.args.thumb_radius, round_top=False, round_bottom=False).translate((extent_max + extent_min) / 2)
+                square_limit_box = RoundedBoxShell(extent_max - extent_min - space + 2 * np.array([self.args.thumb_extra_x_space, 0., 500]), self.args.case_thickness, radius=self.args.thumb_radius, round_top=False, round_bottom=False).translate((extent_max + extent_min) / 2).translate([-self.args.thumb_extra_x_space, 0., 0.])
+                oriented_box = RoundedBoxShell(oriented_size + space, self.args.case_thickness, radius=self.args.thumb_radius, round_top=False, round_bottom=False).translate(oriented_loc).rotate(oriented_box_ang, [0., 0., 1.])
+                oriented_limit_box = RoundedBoxShell(oriented_size + 2 * np.array([self.args.thumb_extra_x_space, 0., 500]), self.args.case_thickness, radius=self.args.thumb_radius, round_top=False, round_bottom=False).translate(oriented_loc).translate([-self.args.thumb_extra_x_space, 0., 0.]).rotate(oriented_box_ang, [0., 0., 1.])
             else:
-                box = BoxShell(extent_max - extent_min, self.args.case_thickness).translate((extent_max + extent_min) / 2)
-                limit_box = BoxShell(extent_max - extent_min - np.array([2 * space[0] - eps -self.args.case_thickness, 2 * space[1] - eps -self.args.case_thickness, 100.]), self.args.case_thickness).translate((extent_max + extent_min) / 2)
+                square_box = BoxShell(extent_max - extent_min, self.args.case_thickness).translate((extent_max + extent_min) / 2)
+                square_limit_box = BoxShell(extent_max - extent_min - np.array([2 * space[0] - eps -self.args.case_thickness, 2 * space[1] - eps -self.args.case_thickness, 100.]), self.args.case_thickness).translate((extent_max + extent_min) / 2)
+                oriented_box = BoxShell(oriented_size + space, self.args.case_thickness).translate(oriented_loc).rotate(oriented_box_ang, [0., 0., 1.])
+                oriented_limit_box = BoxShell(oriented_size + 2 * np.array([0., 0., 500]), self.args.case_thickness).translate(oriented_loc).rotate(oriented_box_ang, [0., 0., 1.])
+            if self.args.thumb_box == 'square':
+                box = square_box
+                limit_box = square_limit_box
+            elif self.args.thumb_box == 'oriented':
+                box = oriented_box
+                limit_box = oriented_limit_box
+            elif self.args.thumb_box == 'intersection':
+                box = oriented_box.intersection(square_box)
+                limit_box = oriented_limit_box.intersection(square_limit_box)
+            else:
+                raise ValueError(f'Unkown value for thumb_box {self.args.thumb_box}')
             shell = shell.intersection(box)
         else:
             raise ValueError(f'Unkown thumb case type {self.args.thumb_case}')
@@ -251,7 +267,7 @@ class Keyboard():
         return shell
 
     def get_key_separations(self):
-        x_margin = 2.#TODO: make parameter
+        x_margin = 2.#TODO: make parameter, used for the cylinders with walls
         x_loc = []
         extent_min = []
         extent_max = []
@@ -272,14 +288,30 @@ class Keyboard():
         extent_max = np.concatenate(extent_max, axis=0).max(axis=0)
         return x_loc, extent_min, extent_max
 
+    def get_switch_min(self):
+        switch_dummy = Cube([self.args.keyswitch_height + 2 * self.args.key_hole_rim_width, self.args.keyswitch_width + 2 * self.args.key_hole_rim_width, self.args.keyswitch_space_below], center=True).translate([0., 0., - (self.args.keyswitch_space_below) / 2 + self.args.plate_thickness])
+        all_points = []
+        dummies = []
+        for j in range(self.args.ncols - 1):
+            for i in range(self.column_nrows[j]):
+                tr_switch_dummy = self.tent_and_z_offset(self.transform_column(self.transform_row(switch_dummy, i, j), j))
+                dummies.append(tr_switch_dummy)
+                all_points.append(tr_switch_dummy.get_points())
+        for i in range(self.args.n_thumbs):
+                tr_switch_dummy = self.transform_thumb(switch_dummy, i, )
+                dummies.append(tr_switch_dummy)
+                all_points.append(tr_switch_dummy.get_points())
+        all_points = np.concatenate(all_points, axis=0)
+        switch_min = all_points[:,2].min()
+        return switch_min
+
+
     def get_hulls(self, extent_min, extent_max):
         return get_hulls(self, extent_min, extent_max)
 
     def get_case(self):
         x_loc, extent_min, extent_max = self.get_key_separations()
         space = np.array(self.args.grid_xy_space)
-        extent_min[0:2] = extent_min[0:2] - space
-        extent_max[0:2] = extent_max[0:2] + space
 
         if self.args.main_grid_support_type == 'cylinders':
             shells = []
@@ -287,7 +319,7 @@ class Keyboard():
                 shells.append(self.get_shell_for_column(j))
             support = WalledCylinderShells(shells, x_loc, thickness=self.args.case_thickness * 0.8, y_min=-100, y_max=100., z_min=-100, z_max=100)
             if self.args.rounded_grid_case:
-                case = TentedRoundedShell(extent_min[0:2], extent_max[0:2], extent_max[2],
+                case = TentedRoundedShell(extent_min[0:2] - space, extent_max[0:2] + space, extent_max[2],
                                           z_below=100.,
                                           tent_function=self.tent_and_z_offset,
                                           thickness=self.args.case_thickness, radius=self.args.grid_radius)
@@ -301,9 +333,25 @@ class Keyboard():
 
         return case
 
+    def get_screw_inserts(self, screw_corners, case_split_z):
+
+        outer = Cylinder(self.args.screw_insert_h , r=self.args.screw_insert_od / 2 + 1.6, center=True, segments=30).translate([0., 0., (self.args.screw_insert_h ) / 2])
+        inner = Cylinder(self.args.screw_insert_h + 2 * eps, r=self.args.screw_insert_od / 2, center=True, segments=30).translate([0., 0., -eps]).translate([0., 0., (self.args.screw_insert_h) / 2])
+        print(self.args.screw_insert_h)
+
+        insert_post = outer.difference(inner)
+
+        insert_posts = []
+        for screw_corner in screw_corners:
+            d = 3.3
+            s = np.array(screw_corner) - np.sign(np.array(screw_corner)) * d
+            insert_posts.append(insert_post.translate([*s, case_split_z]))
+
+        return insert_posts
+
+
 
     def get_model(self):
-
 
         key_holes = []
         cutouts = []
@@ -313,7 +361,8 @@ class Keyboard():
                 cutouts.append(self.transform_switch(self.switch_cutout(), i, j))
 
         case = self.get_case()
-
+        screw_corners = case.get_screw_corners()
+        print("screw corners: ", screw_corners)
 
         for i in range(self.args.n_thumbs):
             key_holes.append(self.transform_thumb(self.single_keyhole(), i))
@@ -323,12 +372,20 @@ class Keyboard():
         case = case.difference(limit_box, outer=False)
         case = case.union(thumb_case, outer=True)
 
+        switch_min = self.get_switch_min()
+
+        bottom_plate = BoxShell([1000., 1000., 1000.], self.args.case_thickness, center=True).translate([0., 0., -500. + switch_min - self.args.cut_below_lowest_switch - self.args.case_thickness])
+
+        case = case.difference(bottom_plate)
+
+        insert_posts = self.get_screw_inserts(screw_corners, switch_min)
+
         for cutout in cutouts:
             case = case.difference(cutout)
 
-        _, extent_min, _ = self.get_key_separations()
-        cut = Cube([1000., 1000., 1000.], center=True).translate([0., 0., -500. - extent_min[2] - self.args.grid_z_space_below])
-        return case.shell.difference(cut) + sum(key_holes)
+        cut = Cube([1000., 1000., 1000.], center=True).translate([0., 0., -500. + switch_min])
+
+        return case.shell.difference(cut) + sum(key_holes) + sum(insert_posts)
 
 
 

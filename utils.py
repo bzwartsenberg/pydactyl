@@ -1,5 +1,5 @@
 #!/usr/bin/env ipython
-from shell import BoxShell, RoundedBoxShell
+from shell import BoxShell, RoundedBoxShell, TentedRoundedShell
 from super_solid import Cube, Cylinder, Sphere
 from super_solid import Union, Difference, Intersection, Hull
 from super_solid import Translate, Mirror, Scale, Rotate
@@ -250,6 +250,15 @@ def get_hulls(kb, extent_min, extent_max, interpolate_z=False):
     def get_hull(i2, j2, i2p1, j2p1):
         return Hull()(get_post(i2,j2), get_post(i2,j2p1), get_post(i2p1,j2), get_post(i2p1, j2p1))
 
+    def get_block(i2, j2, i2p1, j2p1, at_z):
+        p1 = get_post(i2,j2)
+        p2 = get_post(i2,j2p1)
+        p3 = get_post(i2p1,j2)
+        p4 = get_post(i2p1,j2p1)
+        pts = [Cube([d, d, kb.args.plate_thickness], center=True).translate([*p.get_points().mean(axis=0)[0:2], at_z]) for p in [p1, p2, p3, p4]]
+        pts = pts + [p1, p2, p3, p4]
+        return Hull()(*pts)
+
     hulls = []
     for i2 in range(i2range - 1):
         for j2 in range(j2range - 1):
@@ -257,21 +266,41 @@ def get_hulls(kb, extent_min, extent_max, interpolate_z=False):
                 # hulls.append(get_post(i2, j2))
                 hulls.append(get_hull(i2, j2, i2+1, j2+1))
 
+    z_max = get_post(0,0).get_points().max(axis=0)[2]
+    for i2 in range(i2range - 1):
+        for j2 in range(j2range - 1):
+            z = get_post(0,0).get_points().max(axis=0)[2]
+            if z > z_max:
+                z_max = z
+
+    outer = []
+    for i2 in range(i2range - 1):
+        for j2 in range(j2range - 1):
+            outer.append(get_block(i2, j2, i2+1, j2+1, z_max + 20.))
 
     hulls = Union()(hulls)
+    outer = Union()(outer)
     xy_space = (np.array([*kb.args.grid_xy_space, 0]) - space) * np.array([1., 1., 0.])
-    z_space = np.array([0., 0., 10 + kb.args.grid_z_space])
     box_extent_max = extent_max + xy_space
-    box_extent_min = extent_min - xy_space - z_space
+    box_extent_min = extent_min - xy_space
 
     cutout = Cube(extent_max + np.array([0., 0., 2.]) - extent_min, center=True).translate((extent_max + np.array([0., 0., 2.]) + extent_min) / 2)
 
     size = box_extent_max - box_extent_min
     loc = (box_extent_max + box_extent_min) / 2
     if kb.args.rounded_grid_case:
-        shell = RoundedBoxShell(size, kb.args.case_thickness, radius=kb.args.grid_radius, round_top=True, round_bottom=False).translate(loc)
+        shell = TentedRoundedShell(box_extent_min[0:2], box_extent_max[0:2], box_extent_max[2],
+                                    z_below=100.,
+                                    tent_function=kb.tent_and_z_offset,
+                                    thickness=kb.args.case_thickness, radius=kb.args.grid_radius)
     else:
-        shell = BoxShell(size, kb.args.case_thickness).translate(loc)
+        raise RuntimeError()
+        # shell = BoxShell(size, kb.args.case_thickness).translate(loc)
+    cutout = kb.tent_and_z_offset(cutout)
+    hulls = kb.tent_and_z_offset(hulls)
+    outer = kb.tent_and_z_offset(outer)
     shell.shell = shell.shell.difference(cutout).union(hulls)
+    shell.outer = shell.outer.difference(outer).union(hulls)
+    shell.inner = shell.inner.difference(outer)
 
     return shell

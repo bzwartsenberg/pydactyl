@@ -41,6 +41,25 @@ def fit_cone_to_points(points):
 
     return res.x
 
+def fit_oriented_box_to_extent(points):
+
+    x0 = 0.
+    def opt_func(x, points):
+        mat = rotation_matrix([0., 0., 1.], -x)
+        rotated_points = np.einsum('ij,dj->di', mat, points)
+        area = (rotated_points[0:2].max() - rotated_points[0:2].min()).prod()
+        return area
+
+    res = minimize(opt_func, x0, args=(points), method='Nelder-Mead', tol=1e-6)
+
+    mat = rotation_matrix([0., 0., 1.], -res.x)
+    rotated_points = np.einsum('ij,dj->di', mat, points)
+    extent_min = np.array([*rotated_points[:,0:2].min(axis=0), points[:,2].min()])
+    extent_max = np.array([*rotated_points[:,0:2].max(axis=0), points[:,2].max()])
+    size = extent_max - extent_min
+    loc = (extent_max + extent_min) / 2
+    return res.x[0] * 180 / np.pi, size, loc
+
 def get_cone(origin, v, psi, phi):
     z1 = 10.
     z2 = 3000.
