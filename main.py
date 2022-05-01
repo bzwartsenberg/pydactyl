@@ -349,6 +349,9 @@ class Keyboard():
 
         return insert_posts
 
+    def get_trs_holder(self):
+        pass
+
 
 
     def get_model(self):
