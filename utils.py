@@ -305,16 +305,13 @@ def get_hulls(kb, extent_min, extent_max, interpolate_z=False):
 
     return shell
 
-def get_holder_with_hook(x_size, y_size, z_size, pcb_thickness, hook_width, hook_offset=0.):
+def get_holder_with_hook(x_size, y_size, z_size, pcb_thickness, hook_width=3.0, hook_depth=2.0, hook_height=1.5, hook_offset=0.):
     c = Cube([x_size, y_size, z_size], center=True).translate([0., 0., z_size / 2])
 
-    hook_width = 3.0
-    hook_depth = 2.0
-    hook_height = 3.0
     hook_back = Cube([hook_width, hook_depth, z_size + pcb_thickness + hook_height], center=True).translate([0., -hook_depth / 2, z_size / 2 + pcb_thickness / 2 + hook_height / 2])
     hook_cut = Cube([2 * hook_width, 2 * hook_height, 2 * hook_height], center=True).rotate(45, [1., 0., 0.]).translate([0., hook_height, np.sqrt(2) * hook_height])
     hook = Cube([hook_width, hook_height, hook_height], center=True).translate([0., hook_height / 2, hook_height / 2])
 
-    hook = hook.difference(hook_cut).translate([0., 0., z_size + pcb_thickness]).union(hook_back).translate([0., -y_size / 2, 0.])
+    hook = hook.difference(hook_cut).translate([0., 0., z_size + pcb_thickness]).union(hook_back).translate([hook_offset, -y_size / 2, 0.])
 
-    return c.union(hook)
+    return c.union(hook).translate([0., -y_size/2, -z_size - pcb_thickness])

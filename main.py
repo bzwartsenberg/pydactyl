@@ -8,7 +8,7 @@ import sys
 import numpy as np
 from collections import defaultdict
 from thumb_utils import fit_cone_to_points, fit_oriented_box_to_extent, get_cone, get_conical_shell, get_points_from_transform
-from utils import cube_around_points, cube_surrounding_column, get_cylindrical_shell, get_hulls, get_y_wall_between_points, rotate_around_origin, get_spherical_shell, half_cylindrical_shell
+from utils import cube_around_points, cube_surrounding_column, get_cylindrical_shell, get_holder_with_hook, get_hulls, get_y_wall_between_points, rotate_around_origin, get_spherical_shell, half_cylindrical_shell
 from shell import CylinderShell, BoxShell, RoundedBoxShell, SphericalShell, ConicalShell, TentedRoundedShell, WalledCylinderShells, half_cylinder_shell
 import yaml
 from types import SimpleNamespace
@@ -343,16 +343,39 @@ class Keyboard():
 
         insert_posts = []
         for screw_corner in screw_corners:
-            d = 3.3
+            d = self.args.screw_inset
             s = np.array(screw_corner) - np.sign(np.array(screw_corner)) * d
             insert_posts.append(insert_post.translate([*s, case_split_z]))
 
         return insert_posts
 
-    def get_trs_holder(self):
-        pass
+    def get_screw_hole_cutouts(self, screw_corners, bottom_case_h):
+        screw_hole_cutouts = []
+        for screw_corner in screw_corners:
+            d = self.args.screw_inset
+            s = np.array(screw_corner) - np.sign(np.array(screw_corner)) * d
 
+            cutout = CylinderShell(bottom_case_h * 2, self.args.screw_head_size / 2 + self.args.case_thickness, self.args.case_thickness, close_ends=True, segments=50)
+            cutout.shell = cutout.shell.difference(Cylinder(2 * self.args.case_thickness, self.args.screw_od / 2, center=True, segments=50).translate([0., 0., bottom_case_h + self.args.case_thickness / 2]))
+            screw_hole_cutouts.append(cutout.translate([*s, 0.]))
+        return screw_hole_cutouts
 
+    def get_trs_holder(self, z_size):
+        trs_hole_size = 5.0
+        holder = get_holder_with_hook(self.args.trs_rest_width, self.args.trs_pcb_length, z_size - trs_hole_size / 2, self.args.trs_pcb_thickness, hook_height=1.0, hook_width=self.args.trs_rest_width)
+        holder = holder.translate([0., 0., - trs_hole_size / 2])
+        cutout = Cylinder(5.0, r=trs_hole_size / 2, center=True, segments=50).rotate(90., [1., 0., 0.])
+        return holder, cutout
+
+    def get_microcontroller_holder(self, z_size):
+        usb_c_size = 2.8
+        usb_c_width = 9.
+        holder = get_holder_with_hook(self.args.mc_rest_width, self.args.mc_pcb_length + 0.5, z_size - usb_c_size / 2, self.args.mc_pcb_thickness, hook_height=1.0, hook_width=self.args.mc_rest_width)
+        holder = holder.translate([0., 0., - usb_c_size / 2])
+        c1 = Cylinder(5.0, r=usb_c_size / 2, center=True, segments=50).rotate(90., [1., 0., 0.]).translate([usb_c_width / 2 - usb_c_size / 2, 0., 0.])
+        c2 = Cylinder(5.0, r=usb_c_size / 2, center=True, segments=50).rotate(90., [1., 0., 0.]).translate([-usb_c_width / 2 + usb_c_size / 2, 0., 0.])
+        cutout = Hull()(c1, c2)
+        return holder, cutout
 
     def get_model(self):
 
@@ -365,7 +388,6 @@ class Keyboard():
 
         case = self.get_case()
         screw_corners = case.get_screw_corners()
-        print("screw corners: ", screw_corners)
 
         for i in range(self.args.n_thumbs):
             key_holes.append(self.transform_thumb(self.single_keyhole(), i))
@@ -381,15 +403,38 @@ class Keyboard():
 
         case = case.difference(bottom_plate)
 
+        xy_offset = screw_corners[0]
+        trs_holder, trs_cutout = self.get_trs_holder(self.args.cut_below_lowest_switch)
+        trs_holder = trs_holder.translate([*xy_offset, 0]).translate([self.args.trs_x_offset, -self.args.case_thickness, switch_min])
+        trs_cutout = trs_cutout.translate([*xy_offset, 0]).translate([self.args.trs_x_offset, 0., switch_min])
+
+        mc_holder, mc_cutout = self.get_microcontroller_holder(self.args.cut_below_lowest_switch)
         insert_posts = self.get_screw_inserts(screw_corners, switch_min)
+        mc_holder = mc_holder.translate([*xy_offset, 0]).translate([self.args.mc_x_offset, -self.args.case_thickness, switch_min])
+        mc_cutout = mc_cutout.translate([*xy_offset, 0]).translate([self.args.mc_x_offset, 0., switch_min])
 
-        for cutout in cutouts:
-            case = case.difference(cutout)
+        cut_bottom = Cube([1000., 1000., 1000.], center=True).translate([0., 0., 500. + switch_min])
 
-        cut = Cube([1000., 1000., 1000.], center=True).translate([0., 0., -500. + switch_min])
+        screw_hole_cutouts = self.get_screw_hole_cutouts(screw_corners, self.args.cut_below_lowest_switch)
 
-        return case.shell.difference(cut) + sum(key_holes) + sum(insert_posts)
+        # test = Union()(*[screw_hole for screw_hole in screw_hole_cutouts])
+        # test.union(Cube([10., 10., 10.]))
+        # print(test.get_points())
+        bottom_model = case
+        for screw_hole_cutout in screw_hole_cutouts:
+            bottom_model = bottom_model.difference(screw_hole_cutout.translate([0., 0., switch_min - self.args.cut_below_lowest_switch]), outer=False)
 
+        bottom_model = bottom_model.shell.difference(cut_bottom).difference(trs_cutout).difference(mc_cutout) + trs_holder + mc_holder
+
+        # bottom_model = Cube([60., 50., 100.]).translate([-80., 0., -50.]).intersection(bottom_model)
+
+        # for cutout in cutouts:
+        #     case = case.difference(cutout)
+
+        # cut = Cube([1000., 1000., 1000.], center=True).translate([0., 0., -500. + switch_min])
+
+        # return case.shell.difference(cut) + sum(key_holes) + sum(insert_posts)
+        return bottom_model
 
 
     def to_scad(self, model=None, fname=None):

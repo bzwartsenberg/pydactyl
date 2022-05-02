@@ -381,7 +381,7 @@ class TentedRoundedShell(Shell):
 
 
         self.outer_xy = []
-        for i in [-1, 1]:
+        for i in [1, -1]:
             outer.append(Sphere(r=radius, segments=segments).translate([low[0] - w, i * (size_xy[1] / 2 - radius) + loc_xy[1], low[2]]))
             inner.append(Sphere(r=radius - thickness, segments=segments).translate([low[0] - w, i * (size_xy[1] / 2 - radius) + loc_xy[1], low[2]]))
 
