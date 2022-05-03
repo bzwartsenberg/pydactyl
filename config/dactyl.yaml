@@ -58,6 +58,7 @@ column_5:
   column_offset: [0., -12., 5.64]
 # Thumbs:
 thumb_case: cone #cone, buble, bubbles
+cone_segments: 500
 n_thumbs: 5
 thumb_box: intersection # oriented, square, intersection
 rounded_thumb_case: True
@@ -66,25 +67,28 @@ thumb_space: [3., 3., 50.]
 thumb_extra_x_space: 50.
 # Case
 main_grid_support_type: hulls # cylinders, hulls
-case_thickness: 1.0  # wall thickness of the case
+case_thickness: 2.0  # wall thickness of the case
 grid_xy_space: [10., 7.] # space to from the key perimeter to the edge of the box
 rounded_grid_case: True
 grid_radius: 3.0
-cut_below_lowest_switch: 4 # how far to cut the box below the lowest switch
+space_below_lowest_switch: 2 # how far to end the box below the lowest switch
+cut_relative_to_lowest_switch: 3  #how far below or above to put the case split
 # screws:
 screw_insert_od: 3.0
-screw_insert_h: 7.0
-screw_od: 2.2
+screw_insert_h: 5.0
+screw_od: 2.6
 screw_head_size: 4.0 # clearance fit
-screw_inset: 3.3
+screw_inset: 3.5
+thumb_screw_offset: [0., 5.]
+thumb_extra_screw_offset: [57., -19.]
 # trs holder:
 trs_pcb_length: 13.1
 trs_pcb_thickness: 1.8
 trs_rest_width: 9.0
-trs_x_offset: 20.
+trs_y_offset: 24.
 
 # microcontroller holder:
 mc_pcb_length: 36.0
 mc_pcb_thickness: 1.8
 mc_rest_width: 9.0
-mc_x_offset: 37.
+mc_x_offset: 35.

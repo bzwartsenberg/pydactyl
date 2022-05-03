@@ -67,10 +67,10 @@ def get_cone(origin, v, psi, phi):
     r2 = np.tan(phi) * z2
     return Cylinder((z2 - z1), r1=r1, r2=r2, center=False).translate([0., 0., z1]).rotate(psi * 180 / np.pi, v).translate(origin)
 
-def get_conical_shell(origin, v, psi, phi, thickness):
+def get_conical_shell(origin, v, psi, phi, thickness, segments=50):
     z2 = 3000.
     r2 = np.tan(phi) * z2
-    return ConicalShell(z2, r2, thickness).translate([0., 0., -z2]).rotate(180., [1., 0., 0.]).rotate(psi * 180 / np.pi, v).translate(origin)
+    return ConicalShell(z2, r2, thickness, segments=segments).translate([0., 0., -z2]).rotate(180., [1., 0., 0.]).rotate(psi * 180 / np.pi, v).translate(origin)
 
 def get_points_from_transform(kb):
 

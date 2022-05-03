@@ -229,12 +229,12 @@ class Keyboard():
         extent_min = points.min(axis=0) - space
         if self.args.thumb_case == 'cone':
             x = fit_cone_to_points(points)
-            shell = get_conical_shell(x[0:3], x[3:6], x[6], x[7], self.args.case_thickness)
+            shell = get_conical_shell(x[0:3], x[3:6], x[6], x[7], self.args.case_thickness, segments=self.args.cone_segments)
             if self.args.rounded_thumb_case:
                 square_box = RoundedBoxShell(extent_max - extent_min, self.args.case_thickness, radius=self.args.thumb_radius, round_top=False, round_bottom=False).translate((extent_max + extent_min) / 2)
                 square_limit_box = RoundedBoxShell(extent_max - extent_min - space + 2 * np.array([self.args.thumb_extra_x_space, 0., 500]), self.args.case_thickness, radius=self.args.thumb_radius, round_top=False, round_bottom=False).translate((extent_max + extent_min) / 2).translate([-self.args.thumb_extra_x_space, 0., 0.])
-                oriented_box = RoundedBoxShell(oriented_size + space, self.args.case_thickness, radius=self.args.thumb_radius, round_top=False, round_bottom=False).translate(oriented_loc).rotate(oriented_box_ang, [0., 0., 1.])
-                oriented_limit_box = RoundedBoxShell(oriented_size + 2 * np.array([self.args.thumb_extra_x_space, 0., 500]), self.args.case_thickness, radius=self.args.thumb_radius, round_top=False, round_bottom=False).translate(oriented_loc).translate([-self.args.thumb_extra_x_space, 0., 0.]).rotate(oriented_box_ang, [0., 0., 1.])
+                oriented_box = RoundedBoxShell(oriented_size + 2 * space, self.args.case_thickness, radius=self.args.thumb_radius, round_top=False, round_bottom=False).translate(oriented_loc).rotate(oriented_box_ang, [0., 0., 1.])
+                oriented_limit_box = RoundedBoxShell(oriented_size + 2 * space + 2 * np.array([self.args.thumb_extra_x_space, -eps, 500]), self.args.case_thickness, radius=self.args.thumb_radius, round_top=False, round_bottom=False).translate(oriented_loc).translate([-self.args.thumb_extra_x_space, 0., 0.]).rotate(oriented_box_ang, [0., 0., 1.])
             else:
                 square_box = BoxShell(extent_max - extent_min, self.args.case_thickness).translate((extent_max + extent_min) / 2)
                 square_limit_box = BoxShell(extent_max - extent_min - np.array([2 * space[0] - eps -self.args.case_thickness, 2 * space[1] - eps -self.args.case_thickness, 100.]), self.args.case_thickness).translate((extent_max + extent_min) / 2)
@@ -355,8 +355,8 @@ class Keyboard():
             d = self.args.screw_inset
             s = np.array(screw_corner) - np.sign(np.array(screw_corner)) * d
 
-            cutout = CylinderShell(bottom_case_h * 2, self.args.screw_head_size / 2 + self.args.case_thickness, self.args.case_thickness, close_ends=True, segments=50)
-            cutout.shell = cutout.shell.difference(Cylinder(2 * self.args.case_thickness, self.args.screw_od / 2, center=True, segments=50).translate([0., 0., bottom_case_h + self.args.case_thickness / 2]))
+            cutout = CylinderShell((bottom_case_h) * 2 + self.args.case_thickness, self.args.screw_head_size / 2 + self.args.case_thickness, self.args.case_thickness, close_ends=True, segments=50).translate([0., 0., -bottom_case_h  -self.args.case_thickness / 2])
+            cutout.shell = cutout.shell.difference(Cylinder(2 * self.args.case_thickness, self.args.screw_od / 2, center=True, segments=50))
             screw_hole_cutouts.append(cutout.translate([*s, 0.]))
         return screw_hole_cutouts
 
@@ -377,7 +377,7 @@ class Keyboard():
         cutout = Hull()(c1, c2)
         return holder, cutout
 
-    def get_model(self):
+    def make_models(self):
 
         key_holes = []
         cutouts = []
@@ -387,63 +387,64 @@ class Keyboard():
                 cutouts.append(self.transform_switch(self.switch_cutout(), i, j))
 
         case = self.get_case()
-        screw_corners = case.get_screw_corners()
+        screw_corners = [np.array(s) for s in case.get_screw_corners()]
+        screw_corners.append(screw_corners[2] + np.array(self.args.thumb_extra_screw_offset))
+        screw_corners[2] += np.array(self.args.thumb_screw_offset) #TODO: clean this up
 
         for i in range(self.args.n_thumbs):
             key_holes.append(self.transform_thumb(self.single_keyhole(), i))
             cutouts.append(self.transform_thumb(self.switch_cutout(), i))
 
         thumb_case, limit_box = self.get_thumb_case_and_limit_box()
-        case = case.difference(limit_box, outer=False)
-        case = case.union(thumb_case, outer=True)
+        case = case.difference(limit_box, outer=True)
+        case = case.union(thumb_case, outer=False)
 
         switch_min = self.get_switch_min()
 
-        bottom_plate = BoxShell([1000., 1000., 1000.], self.args.case_thickness, center=True).translate([0., 0., -500. + switch_min - self.args.cut_below_lowest_switch - self.args.case_thickness])
+        bottom_plate = BoxShell([1000., 1000., 1000.], self.args.case_thickness, center=True).translate([0., 0., -500. + switch_min - self.args.space_below_lowest_switch])
 
         case = case.difference(bottom_plate)
 
+        case_split_z = switch_min +  self.args.cut_relative_to_lowest_switch
+        bottom_case_h = self.args.space_below_lowest_switch + self.args.cut_relative_to_lowest_switch
+
         xy_offset = screw_corners[0]
-        trs_holder, trs_cutout = self.get_trs_holder(self.args.cut_below_lowest_switch)
-        trs_holder = trs_holder.translate([*xy_offset, 0]).translate([self.args.trs_x_offset, -self.args.case_thickness, switch_min])
-        trs_cutout = trs_cutout.translate([*xy_offset, 0]).translate([self.args.trs_x_offset, 0., switch_min])
+        trs_holder, trs_cutout = self.get_trs_holder(bottom_case_h)
+        trs_holder, trs_cutout = trs_holder.rotate(90, [0., 0., 1.]), trs_cutout.rotate(90, [0., 0., 1.])
+        trs_holder = trs_holder.translate([*xy_offset, 0]).translate([self.args.case_thickness, -self.args.trs_y_offset, case_split_z])
+        trs_cutout = trs_cutout.translate([*xy_offset, 0]).translate([0., -self.args.trs_y_offset, case_split_z])
 
-        mc_holder, mc_cutout = self.get_microcontroller_holder(self.args.cut_below_lowest_switch)
-        insert_posts = self.get_screw_inserts(screw_corners, switch_min)
-        mc_holder = mc_holder.translate([*xy_offset, 0]).translate([self.args.mc_x_offset, -self.args.case_thickness, switch_min])
-        mc_cutout = mc_cutout.translate([*xy_offset, 0]).translate([self.args.mc_x_offset, 0., switch_min])
+        mc_holder, mc_cutout = self.get_microcontroller_holder(bottom_case_h)
+        insert_posts = self.get_screw_inserts(screw_corners, case_split_z)
+        mc_holder = mc_holder.translate([*xy_offset, 0]).translate([self.args.mc_x_offset, -self.args.case_thickness, case_split_z])
+        mc_cutout = mc_cutout.translate([*xy_offset, 0]).translate([self.args.mc_x_offset, 0., case_split_z])
 
-        cut_bottom = Cube([1000., 1000., 1000.], center=True).translate([0., 0., 500. + switch_min])
+        cut_bottom = Cube([1000., 1000., 1000.], center=True).translate([0., 0., 500. + case_split_z])
 
-        screw_hole_cutouts = self.get_screw_hole_cutouts(screw_corners, self.args.cut_below_lowest_switch)
+        screw_hole_cutouts = self.get_screw_hole_cutouts(screw_corners, bottom_case_h)
 
-        # test = Union()(*[screw_hole for screw_hole in screw_hole_cutouts])
-        # test.union(Cube([10., 10., 10.]))
-        # print(test.get_points())
         bottom_model = case
         for screw_hole_cutout in screw_hole_cutouts:
-            bottom_model = bottom_model.difference(screw_hole_cutout.translate([0., 0., switch_min - self.args.cut_below_lowest_switch]), outer=False)
+            bottom_model = bottom_model.difference(screw_hole_cutout.translate([0., 0., case_split_z]), outer=False)
 
-        bottom_model = bottom_model.shell.difference(cut_bottom).difference(trs_cutout).difference(mc_cutout) + trs_holder + mc_holder
+        bottom_model = bottom_model.shell.difference(cut_bottom).difference(trs_cutout).difference(mc_cutout).union(trs_holder).union(mc_holder)
 
-        # bottom_model = Cube([60., 50., 100.]).translate([-80., 0., -50.]).intersection(bottom_model)
+        self.bottom_model = bottom_model
 
-        # for cutout in cutouts:
-        #     case = case.difference(cutout)
+        for cutout in cutouts:
+            case = case.difference(cutout)
 
-        # cut = Cube([1000., 1000., 1000.], center=True).translate([0., 0., -500. + switch_min])
+        cut = Cube([1000., 1000., 1000.], center=True).translate([0., 0., -500. + case_split_z])
 
-        # return case.shell.difference(cut) + sum(key_holes) + sum(insert_posts)
-        return bottom_model
+        self.top_model = case.shell.difference(cut).difference(trs_cutout).difference(mc_cutout) + sum(key_holes) + sum(insert_posts)
+
+        self.top_and_bottom = self.bottom_model.translate([0., 0., -1]).union(self.top_model)
 
 
-    def to_scad(self, model=None, fname=None):
+    def to_scad(self, model, fname=None):
 
         if fname is None:
             fname = self.args.output_file_name
-
-        if model is None:
-            model = self.get_model()
 
         scad_render_to_file(model, fname)
 
@@ -504,6 +505,8 @@ if __name__ == "__main__":
     # print(kb.major_radii)
     # print(kb.minor_radii)
 
-    model = kb.get_model()
+    kb.make_models()
 
-    kb.to_scad(model=model, fname='things/model.scad')
+
+    kb.to_scad(kb.bottom_model, fname='things/bottom_model.scad')
+    kb.to_scad(kb.top_model, fname='things/model.scad')
