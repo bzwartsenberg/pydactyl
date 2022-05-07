@@ -292,7 +292,7 @@ class Keyboard():
         switch_dummy = Cube([self.args.keyswitch_height + 2 * self.args.key_hole_rim_width, self.args.keyswitch_width + 2 * self.args.key_hole_rim_width, self.args.keyswitch_space_below], center=True).translate([0., 0., - (self.args.keyswitch_space_below) / 2 + self.args.plate_thickness])
         all_points = []
         dummies = []
-        for j in range(self.args.ncols - 1):
+        for j in range(self.args.ncols):
             for i in range(self.column_nrows[j]):
                 tr_switch_dummy = self.tent_and_z_offset(self.transform_column(self.transform_row(switch_dummy, i, j), j))
                 dummies.append(tr_switch_dummy)
@@ -437,6 +437,7 @@ class Keyboard():
         cut = Cube([1000., 1000., 1000.], center=True).translate([0., 0., -500. + case_split_z])
 
         self.top_model = case.shell.difference(cut).difference(trs_cutout).difference(mc_cutout) + sum(key_holes) + sum(insert_posts)
+        # self.top_model = case.shell.difference(cut) + sum(key_holes)
 
         self.top_and_bottom = self.bottom_model.translate([0., 0., -1]).union(self.top_model)
 
@@ -507,6 +508,10 @@ if __name__ == "__main__":
 
     kb.make_models()
 
+    plate = kb.single_keyhole()
+
 
     kb.to_scad(kb.bottom_model, fname='things/bottom_model.scad')
     kb.to_scad(kb.top_model, fname='things/model.scad')
+
+    kb.to_scad(plate, fname='things/plate.scad')

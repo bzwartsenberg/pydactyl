@@ -287,7 +287,7 @@ def get_hulls(kb, extent_min, extent_max, interpolate_z=False):
     box_extent_max = extent_max + xy_space
     box_extent_min = extent_min - xy_space
 
-    cutout_size = orig_extent_max + np.array([0., 0., 2.]) - orig_extent_min + space_min
+    cutout_size = orig_extent_max + np.array([0., 0., 2.]) - orig_extent_min + 2 * space_min
     cutout_offset = (orig_extent_max + np.array([0., 0., 2.]) + orig_extent_min) / 2
     cutout = Cube(cutout_size, center=True).translate(cutout_offset)
 
@@ -306,7 +306,7 @@ def get_hulls(kb, extent_min, extent_max, interpolate_z=False):
     shell.outer = shell.outer.difference(outer).union(hulls)
     shell.inner = shell.inner.difference(outer)
 
-    return shell.shell
+    return shell
 
 def get_holder_with_hook(x_size, y_size, z_size, pcb_thickness, hook_width=3.0, hook_depth=2.0, hook_height=1.5, hook_offset=0.):
     c = Cube([x_size, y_size, z_size], center=True).translate([0., 0., z_size / 2])
