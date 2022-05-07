@@ -50,13 +50,9 @@ class Keyboard():
         # TODO: clean this up, so that it is not necessary anymore
         self.tenting_angle = self.args.tenting_angle
         self.keyboard_z_offset = self.args.keyboard_z_offset
-        mh = self.args.keyswitch_height + 2 * self.args.key_hole_rim_width
-        mw = self.args.keyswitch_width + 2 * self.args.key_hole_rim_width
-        cr = (self.args.extra_width + mw) / 2 / np.sin(- self.args.beta * np.pi / 180 / 2)
-        rr = (self.args.extra_height + mh) / 2 / np.sin(- self.args.alpha * np.pi / 180 / 2)
-        self.major_radii = {i : cr for i in range(self.args.ncols)} #radius of column rotation
+        self.major_radii = {i : self.args.column_radius for i in range(self.args.ncols)} #radius of column rotation
         self.major_angle = {i : getattr(self.args, f'column_{i}')['angle'] for i in range(self.args.ncols)} #column angle
-        self.minor_radii = {i : rr for i in range(self.args.ncols)}
+        self.minor_radii = {i : getattr(self.args, f'column_{i}')['row_radius']  for i in range(self.args.ncols)}
         self.minor_angle_offset = {i : getattr(self.args, f'column_{i}')['row_angle_offset'] for i in range(self.args.ncols)}
         self.minor_angle_delta = {i : self.args.alpha for i in range(self.args.ncols)}
         self.z_rotation_angle = {i : getattr(self.args, f'column_{i}')['z_rotation_angle']  for i in range(self.args.ncols)}
@@ -337,7 +333,6 @@ class Keyboard():
 
         outer = Cylinder(self.args.screw_insert_h , r=self.args.screw_insert_od / 2 + 1.6, center=True, segments=30).translate([0., 0., (self.args.screw_insert_h ) / 2])
         inner = Cylinder(self.args.screw_insert_h + 2 * eps, r=self.args.screw_insert_od / 2, center=True, segments=30).translate([0., 0., -eps]).translate([0., 0., (self.args.screw_insert_h) / 2])
-        print(self.args.screw_insert_h)
 
         insert_post = outer.difference(inner)
 
