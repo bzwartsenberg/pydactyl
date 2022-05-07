@@ -96,9 +96,12 @@ def get_y_wall_between_points(points0, points1, thickness, margin):
 
 
 def get_hulls(kb, extent_min, extent_max, interpolate_z=False):
-    space = np.array([3., 3., -5.])
-    extent_max = extent_max + space
-    extent_min = extent_min - space
+    orig_extent_max = extent_max
+    orig_extent_min = extent_min
+    space_max = np.array([3., 3., -5.])
+    space_min = np.array([3., 3., 0.])
+    extent_max = extent_max + space_max
+    extent_min = extent_min - space_min
     d = 0.1
     i2range = 2 * (max([kb.column_nrows[j] for j in range(kb.args.ncols)]) + 1)
     j2range = 2 * (kb.args.ncols + 1)
@@ -280,14 +283,14 @@ def get_hulls(kb, extent_min, extent_max, interpolate_z=False):
 
     hulls = Union()(hulls)
     outer = Union()(outer)
-    xy_space = (np.array([*kb.args.grid_xy_space, 0]) - space) * np.array([1., 1., 0.])
+    xy_space = (np.array([*kb.args.grid_xy_space, 0]) - space_max) * np.array([1., 1., 0.])
     box_extent_max = extent_max + xy_space
     box_extent_min = extent_min - xy_space
 
-    cutout = Cube(extent_max + np.array([0., 0., 2.]) - extent_min, center=True).translate((extent_max + np.array([0., 0., 2.]) + extent_min) / 2)
+    cutout_size = orig_extent_max + np.array([0., 0., 2.]) - orig_extent_min + space_min
+    cutout_offset = (orig_extent_max + np.array([0., 0., 2.]) + orig_extent_min) / 2
+    cutout = Cube(cutout_size, center=True).translate(cutout_offset)
 
-    size = box_extent_max - box_extent_min
-    loc = (box_extent_max + box_extent_min) / 2
     if kb.args.rounded_grid_case:
         shell = TentedRoundedShell(box_extent_min[0:2], box_extent_max[0:2], box_extent_max[2],
                                     z_below=100.,
@@ -303,7 +306,7 @@ def get_hulls(kb, extent_min, extent_max, interpolate_z=False):
     shell.outer = shell.outer.difference(outer).union(hulls)
     shell.inner = shell.inner.difference(outer)
 
-    return shell
+    return shell.shell
 
 def get_holder_with_hook(x_size, y_size, z_size, pcb_thickness, hook_width=3.0, hook_depth=2.0, hook_height=1.5, hook_offset=0.):
     c = Cube([x_size, y_size, z_size], center=True).translate([0., 0., z_size / 2])
