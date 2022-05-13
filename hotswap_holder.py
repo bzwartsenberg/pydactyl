@@ -11,6 +11,14 @@ import yaml
 from utils import get_holder_with_hook
 from main import Keyboard
 
+# parser = argparse.ArgumentParser()
+
+# Keyboard.add_args(parser)
+
+# args = parser.parse_args()
+
+# kb = Keyboard(args)
+
 keyswitch_height = 13.8
 keyswitch_width = 13.9
 
@@ -48,7 +56,7 @@ hotswap_cutout_4_x_offset = hotswap_x3 / 2.01 - holder_x / 2
 
 
 hotswap_cutout_led_x_offset = 0
-hotswap_cutout_led_y_offset = -6
+hotswap_cutout_led_y_offset = -7
 
 hotswap_cutout_1 = Cube([holder_x, hotswap_y1, hotswap_z], center=True).translate([0.01, 4.95, hotswap_cutout_z_offset])
 hotswap_cutout_2 = Cube([hotswap_x2, hotswap_y2, hotswap_z], center=True).translate([-holder_x / 4.5, 4.0, hotswap_cutout_z_offset])
@@ -64,16 +72,37 @@ diode_wire_channel_depth = 1.5 * diode_wire_dia
 diode_body_width = 1.95
 diode_body_length = 4
 diode_corner_hole = Cylinder(h=2*hotswap_z, r=diode_wire_dia, segments=50, center=True).translate([-6.55, -6.75, 0])
-diode_view_hole = Cube([diode_body_width / 2, diode_body_length / 1.25, 2 * hotswap_z], center=True).translate([-6.25, -3, 0])
-diode_socket_hole_left = Cylinder(h=hotswap_z, r=diode_wire_dia, center=True, segments=50).translate([-6.85, 1.5, 0])
-diode_socket_hole_right = Cylinder(h=hotswap_z, r=diode_wire_dia, center=True, segments=50).translate([6.85, 3.5, 0])
-diode_channel_pin_left = Cube([diode_wire_dia, 2.5, diode_wire_channel_depth], center=True).rotate(10., [0., 0., 1]).translate([-6.55, 0., -0.49 * diode_wire_channel_depth])
-diode_channel_pin_right = Cube([diode_wire_dia, 6.5, diode_wire_channel_depth], center=True).rotate(-5., [0., 0., 1]).translate([6.55, 0., -0.49 * diode_wire_channel_depth])
-diode_channel_wire = Cube([diode_wire_dia, 2., diode_wire_channel_depth], center=True).translate([-6.25, -5.75, -0.49 * diode_wire_channel_depth])
-diode_body = Cube([diode_body_width, diode_body_length, diode_body_width], center=True).translate([-6.25, -3.0, -0.49 * diode_wire_channel_depth])
 
-diode_cutout = Union()(diode_corner_hole, diode_view_hole,  diode_channel_wire, diode_body)
-other_diode = Union()(diode_socket_hole_left, diode_socket_hole_right, diode_channel_pin_left, diode_channel_pin_right)
+diode_socket_hole_right = Cylinder(h=hotswap_z, r=diode_wire_dia, center=True, segments=50).translate([6.85, 3.5, 0])
+diode_channel_pin_right = Cube([diode_wire_dia, 2.5, diode_wire_channel_depth], center=True).rotate(-18., [0., 0., 1]).translate([6.45, 2., -0.49 * diode_wire_channel_depth])
+diode_channel_pin_right_lower = Cube([diode_wire_dia, 2.5, diode_wire_channel_depth], center=True).rotate(-45., [0., 0., 1]).translate([5.95, -2.3, -0.49 * diode_wire_channel_depth])
+diode_channel_pin_right_joint = Cube([diode_wire_dia*2, 5.0, diode_wire_channel_depth], center=True).rotate(-90., [0., 0., 1]).translate([2.95, -3.0, -0.49 * diode_wire_channel_depth])
+diode_loc_x = -6.25
+diode_loc_y = -.0
+diode_view_hole = Cube([diode_body_width / 2, diode_body_length / 1.25, 2 * hotswap_z], center=True).translate([diode_loc_x, diode_loc_y, 0])
+diode_body = Cube([diode_body_width, diode_body_length, diode_body_width], center=True).translate([diode_loc_x, diode_loc_y, -0.49 * diode_wire_channel_depth])
+diode_cutout = Union()(diode_view_hole,  diode_body).mirror([1.,0.,0.]).union(diode_socket_hole_right, diode_channel_pin_right, diode_channel_pin_right_lower, diode_channel_pin_right_joint)
+
+fac = 1.3
+wire_right = Cube([diode_wire_dia*fac, 9.4, diode_wire_channel_depth*fac], center=True).rotate(-90., [0., 0., 1]).translate([0.50, -3.0, -0.49 * fac * diode_wire_channel_depth])
+wire_right_hole = Cylinder(h=2*hotswap_z, r=diode_wire_dia, segments=50, center=True).translate([-4.85, -6.25, 0])
+wire_right2 = Cube([diode_wire_dia*fac, 2.4, diode_wire_channel_depth*fac], center=True).rotate(-00., [0, 0., 1]).translate([-4.85, -4.89, -0.49 * fac* diode_wire_channel_depth])
+wire_right3 = Cube([diode_wire_dia*fac, 1.5, diode_wire_channel_depth*fac], center=True).rotate(-45., [0., 0., 1]).translate([-4.45, -3.45, -0.49 * fac* diode_wire_channel_depth])
+wire_right_cutout = Union()(wire_right, wire_right_hole, wire_right2, wire_right3)
+# wire_right = Cube([diode_wire_dia, 10.0, diode_wire_channel_depth], center=True).rotate(-90., [0., 0., 1]).translate([0.00, -3.0, -0.49 * diode_wire_channel_depth])
+
+
+
+
+fac = 1.2
+left_wire_x = -6.85
+wire_left_hole = Cylinder(h=2*hotswap_z, r=diode_wire_dia, segments=50, center=True).translate([left_wire_x, -6.25, 0])
+wire_socket_hole_left = Cylinder(h=hotswap_z, r=diode_wire_dia, center=True, segments=50).translate([left_wire_x, 1.5, 0])
+wire_left = Cube([fac*diode_wire_dia, 7.6, diode_wire_channel_depth], center=True).rotate(-00., [0., 0., 1]).translate([left_wire_x, -2.8, -0.49 * diode_wire_channel_depth])
+wire_left_cutout = Union()(wire_socket_hole_left, wire_left_hole, wire_left)
+# diode_channel_pin_left = Cube([diode_wire_dia, 2.5, diode_wire_channel_depth], center=True).rotate(10., [0., 0., 1]).translate([-6.55, 0., -0.49 * diode_wire_channel_depth])
+# diode = Union()(diode_socket_hole_right, diode_channel_pin_right)
+# other_diode = Union()(diode_socket_hole_left, diode_socket_hole_right, diode_channel_pin_left, diode_channel_pin_right)
 
 
 main_axis_hole = Cylinder(h=10., r=4.1 / 2, center=True, segments=50)
@@ -85,9 +114,11 @@ model = swap_holder.difference(cutouts,
                                main_axis_hole,
                                plus_hole,
                                minus_hole,
+                               # diode_cutout,
+                               # diode_cutout.mirror([1.,0.,0]),
+                               wire_left_cutout,
+                               wire_right_cutout,
                                diode_cutout,
-                               diode_cutout.mirror([1.,0.,0]),
-                               other_diode,
                                hotswap_led_cutout)
 # model = cutouts
 
