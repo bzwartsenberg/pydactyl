@@ -17,6 +17,3 @@ Another added benefit of this approach is that it allows the formation of a plat
 # How to 
 
 # Create your own
-
-# Name
-The name is the Latin translation to the original Greek name (d\'aktulos). The reasoning for this namechange is that Clojure (like Greek) is certainly more elegant. Python on the other hand (like Latin) is arguably a bit more practical.
